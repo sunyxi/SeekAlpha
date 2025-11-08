@@ -21,7 +21,7 @@ riskPerTradePct = input.float(title="Risk per trade (% of equity)", defval=1.0, 
 atrLength = input.int(title="ATR length for position sizing", defval=20, minval=5, maxval=50)
 
 // === Helper functions ===
-getTickers(string tickersStr) =>
+getTickers(tickersStr) =>
     string[] result = array.new_string()
     string[] raw = str.split(tickersStr, ",")
     for i = 0 to array.size(raw) - 1
@@ -30,18 +30,18 @@ getTickers(string tickersStr) =>
             array.push(result, sym)
     result
 
-float computeMomentum(series float price, int lookback, int skip) =>
+computeMomentum(price, lookback, skip) =>
     lookbackIndex = lookback + skip
     float mom = na
     if not na(price[lookbackIndex]) and not na(price[skip])
         mom := price[skip] / price[lookbackIndex] - 1.0
     mom
 
-float computeVolatility(series float price, int lookback) =>
+computeVolatility(price, lookback) =>
     ret = ta.roc(price, 1)
     ta.stdev(ret, lookback)
 
-float percentileRank(float[] values, int idx, bool higherIsBetter) =>
+percentileRank(values, idx, higherIsBetter) =>
     n = array.size(values)
     target = array.get(values, idx)
     if na(target)
@@ -61,7 +61,7 @@ float percentileRank(float[] values, int idx, bool higherIsBetter) =>
         float rank = count / n
         rank
 
-float combinedScore(float momentumRank, float volRank, float mWeight, float vWeight) =>
+combinedScore(momentumRank, volRank, mWeight, vWeight) =>
     if na(momentumRank) or na(volRank)
         na
     else
@@ -70,7 +70,7 @@ float combinedScore(float momentumRank, float volRank, float mWeight, float vWei
         vw = totalWeight == 0.0 ? 0.0 : vWeight / totalWeight
         momentumRank * mw + volRank * vw
 
-float getQuantileCutoff(float[] scores, float percentile, bool higherIsBetter) =>
+getQuantileCutoff(scores, percentile, higherIsBetter) =>
     n = array.size(scores)
     if n == 0
         na
@@ -84,7 +84,7 @@ float getQuantileCutoff(float[] scores, float percentile, bool higherIsBetter) =
         targetIndex = math.min(count - 1, n - 1)
         array.get(sortedScores, targetIndex)
 
-int[] sortIndicesByScore(float[] scores, bool descending) =>
+sortIndicesByScore(scores, descending) =>
     n = array.size(scores)
     int[] indices = array.new_int()
     for i = 0 to n - 1
