@@ -1,0 +1,236 @@
+//@version=5
+strategy("Cross-Sectional Momentum + Low Volatility Portfolio", overlay=false, initial_capital=100000, default_qty_type=strategy.percent_of_equity, default_qty_value=100, calc_on_every_tick=false, process_orders_on_close=true, pyramiding=0)
+// Quantitative factor model that ranks a custom universe by 12-month momentum (skip the most recent month)
+// and 63-day low volatility. Rebalances monthly/quarterly and trades the chart symbol when it is selected.
+
+// === Inputs ===
+tickersInput = input.string(
+     title="Universe tickers (comma separated, TradingView format)",
+     defval="NASDAQ:AAPL,NASDAQ:MSFT,NASDAQ:GOOGL,NASDAQ:AMZN,NASDAQ:TSLA,NYSE:JNJ,NYSE:PG,NYSE:KO,NYSE:XOM,NYSE:CVX")
+rebalanceFrequency = input.string(title="Rebalance frequency", defval="Monthly", options=["Monthly", "Quarterly"])
+momentumLookback = input.int(title="Momentum lookback (trading days)", defval=252, minval=60, maxval=504)
+skipRecent = input.int(title="Skip most recent days", defval=21, minval=5, maxval=63)
+volLookback = input.int(title="Low-volatility lookback (trading days)", defval=63, minval=20, maxval=252)
+momentumWeight = input.float(title="Momentum factor weight", defval=0.6, minval=0.0, maxval=1.0, step=0.05)
+volWeight = input.float(title="Low-volatility factor weight", defval=0.4, minval=0.0, maxval=1.0, step=0.05)
+topPercent = input.float(title="Top percentile to go long", defval=20.0, minval=5.0, maxval=50.0, step=1.0)
+bottomPercent = input.float(title="Bottom percentile to go short", defval=20.0, minval=0.0, maxval=50.0, step=1.0)
+allowShorts = input.bool(title="Allow short positions?", defval=true)
+useVolPositionSizing = input.bool(title="Use ATR-based position sizing", defval=true)
+riskPerTradePct = input.float(title="Risk per trade (% of equity)", defval=1.0, minval=0.1, maxval=5.0, step=0.1)
+atrLength = input.int(title="ATR length for position sizing", defval=20, minval=5, maxval=50)
+
+// === Helper functions ===
+getTickers(string tickersStr) =>
+    string[] result = array.new_string()
+    string[] raw = str.split(tickersStr, ",")
+    for i = 0 to array.size(raw) - 1
+        sym = str.trim(array.get(raw, i))
+        if str.length(sym) > 0
+            array.push(result, sym)
+    result
+
+float computeMomentum(series float price, int lookback, int skip) =>
+    lookbackIndex = lookback + skip
+    float mom = na
+    if not na(price[lookbackIndex]) and not na(price[skip])
+        mom := price[skip] / price[lookbackIndex] - 1.0
+    mom
+
+float computeVolatility(series float price, int lookback) =>
+    ret = ta.roc(price, 1)
+    ta.stdev(ret, lookback)
+
+float percentileRank(float[] values, int idx, bool higherIsBetter) =>
+    n = array.size(values)
+    target = array.get(values, idx)
+    if na(target)
+        na
+    else
+        count = 0
+        for j = 0 to n - 1
+            other = array.get(values, j)
+            if na(other)
+                continue
+            if higherIsBetter
+                if other <= target
+                    count += 1
+            else
+                if other >= target
+                    count += 1
+        float rank = count / n
+        rank
+
+float combinedScore(float momentumRank, float volRank, float mWeight, float vWeight) =>
+    if na(momentumRank) or na(volRank)
+        na
+    else
+        totalWeight = mWeight + vWeight
+        mw = totalWeight == 0.0 ? 0.0 : mWeight / totalWeight
+        vw = totalWeight == 0.0 ? 0.0 : vWeight / totalWeight
+        momentumRank * mw + volRank * vw
+
+float getQuantileCutoff(float[] scores, float percentile, bool higherIsBetter) =>
+    n = array.size(scores)
+    if n == 0
+        na
+    else
+        float[] sortedScores = array.new_float(n, na)
+        for i = 0 to n - 1
+            array.set(sortedScores, i, array.get(scores, i))
+        array.sort(sortedScores, higherIsBetter ? order.descending : order.ascending)
+        portion = math.max(0.0, percentile / 100.0 * n)
+        count = math.max(1, int(math.round(portion)))
+        targetIndex = math.min(count - 1, n - 1)
+        array.get(sortedScores, targetIndex)
+
+int[] sortIndicesByScore(float[] scores, bool descending) =>
+    n = array.size(scores)
+    int[] indices = array.new_int()
+    for i = 0 to n - 1
+        array.push(indices, i)
+    if n > 1
+        for i = 0 to n - 2
+            for j = 0 to n - i - 2
+                idxA = array.get(indices, j)
+                idxB = array.get(indices, j + 1)
+                scoreA = array.get(scores, idxA)
+                scoreB = array.get(scores, idxB)
+                bool swap = false
+                if na(scoreA) and not na(scoreB)
+                    swap := true
+                else if not na(scoreA) and not na(scoreB)
+                    swap := descending ? scoreA < scoreB : scoreA > scoreB
+                if swap
+                    array.set(indices, j, idxB)
+                    array.set(indices, j + 1, idxA)
+    indices
+
+// === Universe preparation ===
+var string[] tickers = getTickers(tickersInput)
+var int universeSize = array.size(tickers)
+var float[] momentumValues = array.new_float(universeSize, na)
+var float[] volatilityValues = array.new_float(universeSize, na)
+var float[] momentumRanks = array.new_float(universeSize, na)
+var float[] volatilityRanks = array.new_float(universeSize, na)
+var float[] combinedScores = array.new_float(universeSize, na)
+var float[] targetWeights = array.new_float(universeSize, 0.0)
+var float longCutoff = na
+var float shortCutoff = na
+var bool hasUniverseWarning = false
+
+// Preload security data
+priceSeries(int idx) => request.security(array.get(tickers, idx), timeframe.period, close)
+atrSeries(int idx, int length) => request.security(array.get(tickers, idx), timeframe.period, ta.atr(length))
+
+// Determine rebalance schedule
+isRebalance() =>
+    if rebalanceFrequency == "Monthly"
+        ta.change(time("M")) != 0
+    else
+        ta.change(time("3M")) != 0
+
+// === Factor computation on rebalance ===
+if barstate.isfirst and universeSize == 0
+    runtime.error("Universe list is empty. Please provide at least one ticker.")
+
+if isRebalance() or barstate.isfirst
+    for i = 0 to universeSize - 1
+        seriesPrice = priceSeries(i)
+        mom = computeMomentum(seriesPrice, momentumLookback, skipRecent)
+        vol = computeVolatility(seriesPrice, volLookback)
+        array.set(momentumValues, i, mom)
+        array.set(volatilityValues, i, vol)
+    for i = 0 to universeSize - 1
+        array.set(momentumRanks, i, percentileRank(momentumValues, i, true))
+        array.set(volatilityRanks, i, percentileRank(volatilityValues, i, false))
+    for i = 0 to universeSize - 1
+        score = combinedScore(array.get(momentumRanks, i), array.get(volatilityRanks, i), momentumWeight, volWeight)
+        array.set(combinedScores, i, score)
+
+    longCutoff := getQuantileCutoff(combinedScores, topPercent, true)
+    shortCutoff := allowShorts and bottomPercent > 0 ? getQuantileCutoff(combinedScores, bottomPercent, false) : na
+
+    for i = 0 to universeSize - 1
+        score = array.get(combinedScores, i)
+        weight = 0.0
+        if not na(score) and not na(longCutoff) and score >= longCutoff
+            weight := 1.0
+        else if allowShorts and not na(score) and not na(shortCutoff) and score <= shortCutoff
+            weight := -1.0
+        array.set(targetWeights, i, weight)
+
+// === Position logic for the chart symbol ===
+chartTickerId = syminfo.tickerid
+chartIndex = na
+for i = 0 to universeSize - 1
+    if array.get(tickers, i) == chartTickerId
+        chartIndex := i
+        break
+
+plotchartWeight = na
+if not na(chartIndex)
+    plotchartWeight := array.get(targetWeights, chartIndex)
+
+plot(plotchartWeight, title="Target weight for chart symbol", style=plot.style_steps, color=plotchartWeight >= 0 ? color.new(color.lime, 0) : color.new(color.red, 0))
+
+
+if not na(chartIndex) and (isRebalance() or barstate.isfirst)
+    targetWeight = array.get(targetWeights, chartIndex)
+    atrValue = useVolPositionSizing ? atrSeries(chartIndex, atrLength) : na
+    capital = strategy.equity
+    qtyPercent = math.abs(targetWeight) * 100.0
+    if useVolPositionSizing and math.abs(targetWeight) > 0 and not na(atrValue) and atrValue > 0 and capital > 0
+        dollarRisk = capital * (riskPerTradePct / 100.0)
+        currentPrice = priceSeries(chartIndex)
+        if not na(currentPrice) and currentPrice > 0
+            positionShares = dollarRisk / atrValue
+            atrPercent = positionShares * currentPrice / capital * 100.0
+            qtyPercent := math.min(qtyPercent, atrPercent)
+    if targetWeight > 0 and qtyPercent > 0
+        strategy.entry("Long", strategy.long, qty_percent=qtyPercent)
+        strategy.close("Short")
+    else if targetWeight < 0 and allowShorts and qtyPercent > 0
+        strategy.entry("Short", strategy.short, qty_percent=qtyPercent)
+        strategy.close("Long")
+    else
+        strategy.close("Long")
+        strategy.close("Short")
+
+
+if na(chartIndex) and not hasUniverseWarning
+    label.new(bar_index, close, text="The chart symbol is not part of the selected universe.", style=label.style_label_center, color=color.new(color.orange, 0), textcolor=color.black)
+    hasUniverseWarning := true
+
+// === Analytics ===
+plot(array.size(tickers), title="Universe Size", display=display.status_line)
+plot(longCutoff, title="Long cutoff score", color=color.new(color.lime, 60), display=display.status_line)
+plot(shortCutoff, title="Short cutoff score", color=color.new(color.red, 60), display=display.status_line)
+
+// Table of top & bottom selections
+var table infoTable = table.new(position.top_right, 4, 12, border_color=color.new(color.gray, 70))
+if barstate.islast
+    table.clear(infoTable)
+    table.cell(infoTable, 0, 0, "Rank", text_color=color.white, text_size=size.small, bgcolor=color.new(color.silver, 40))
+    table.cell(infoTable, 1, 0, "Ticker", text_color=color.white, text_size=size.small, bgcolor=color.new(color.silver, 40))
+    table.cell(infoTable, 2, 0, "Momentum", text_color=color.white, text_size=size.small, bgcolor=color.new(color.silver, 40))
+    table.cell(infoTable, 3, 0, "Low Vol", text_color=color.white, text_size=size.small, bgcolor=color.new(color.silver, 40))
+
+    int[] sortedIndices = sortIndicesByScore(combinedScores, true)
+
+    rowsToShow = math.min(5, universeSize)
+    for row = 0 to rowsToShow - 1
+        idx = array.get(sortedIndices, row)
+        table.cell(infoTable, 0, row + 1, str.tostring(row + 1))
+        table.cell(infoTable, 1, row + 1, array.get(tickers, idx))
+        table.cell(infoTable, 2, row + 1, str.tostring(array.get(momentumValues, idx), format.percent))
+        table.cell(infoTable, 3, row + 1, str.tostring(array.get(volatilityValues, idx), format.percent))
+
+    // Bottom selections if shorts enabled
+    if allowShorts
+        for row = 0 to rowsToShow - 1
+            idx = array.get(sortedIndices, array.size(sortedIndices) - 1 - row)
+            table.cell(infoTable, 0, rowsToShow + row + 1, str.tostring(universeSize - row))
+            table.cell(infoTable, 1, rowsToShow + row + 1, array.get(tickers, idx))
+            table.cell(infoTable, 2, rowsToShow + row + 1, str.tostring(array.get(momentumValues, idx), format.percent))
+            table.cell(infoTable, 3, rowsToShow + row + 1, str.tostring(array.get(volatilityValues, idx), format.percent))
