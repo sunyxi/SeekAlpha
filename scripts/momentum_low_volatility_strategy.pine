@@ -162,13 +162,13 @@ if isRebalance() or barstate.isfirst
 
 // === Position logic for the chart symbol ===
 chartTickerId = syminfo.tickerid
-chartIndex = na
+int chartIndex = na
 for i = 0 to universeSize - 1
     if array.get(tickers, i) == chartTickerId
         chartIndex := i
         break
 
-plotchartWeight = na
+float plotchartWeight = na
 if not na(chartIndex)
     plotchartWeight := array.get(targetWeights, chartIndex)
 
