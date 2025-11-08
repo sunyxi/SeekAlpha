@@ -216,7 +216,7 @@ const int tableCols = 4
 const int tableRows = 12
 var table infoTable = table.new(position.top_right, tableCols, tableRows, border_color=color.new(color.gray, 70))
 if barstate.islast
-    table.clear(infoTable, 0, 0, tableRows - 1, tableCols - 1)
+    table.clear(infoTable, 0, 0, tableCols, tableRows)
     table.cell(infoTable, 0, 0, "Rank", text_color=color.white, text_size=size.small, bgcolor=color.new(color.silver, 40))
     table.cell(infoTable, 1, 0, "Ticker", text_color=color.white, text_size=size.small, bgcolor=color.new(color.silver, 40))
     table.cell(infoTable, 2, 0, "Momentum", text_color=color.white, text_size=size.small, bgcolor=color.new(color.silver, 40))
