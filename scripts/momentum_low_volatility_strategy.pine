@@ -216,7 +216,7 @@ const int tableCols = 4
 const int tableRows = 12
 var table infoTable = table.new(position.top_right, tableCols, tableRows, border_color=color.new(color.gray, 70))
 if barstate.islast
-    table.clear(infoTable, 0, 0, tableCols, tableRows)
+    table.clear(infoTable, 0, 0, tableCols - 1, tableRows - 1)
     table.cell(infoTable, 0, 0, "Rank", text_color=color.white, text_size=size.small, bgcolor=color.new(color.silver, 40))
     table.cell(infoTable, 1, 0, "Ticker", text_color=color.white, text_size=size.small, bgcolor=color.new(color.silver, 40))
     table.cell(infoTable, 2, 0, "Momentum", text_color=color.white, text_size=size.small, bgcolor=color.new(color.silver, 40))
@@ -224,7 +224,9 @@ if barstate.islast
 
     int[] sortedIndices = sortIndicesByScore(combinedScores, true)
 
+    int maxRowsAvailable = allowShorts ? math.floor((tableRows - 1) / 2) : tableRows - 1
     int rowsToShow = math.min(5, universeSize)
+    rowsToShow := math.max(0, math.min(rowsToShow, maxRowsAvailable))
     for row = 0 to rowsToShow - 1
         idx = array.get(sortedIndices, row)
         table.cell(infoTable, 0, row + 1, str.tostring(row + 1))
