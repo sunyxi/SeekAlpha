@@ -172,7 +172,7 @@ float plotchartWeight = na
 if not na(chartIndex)
     plotchartWeight := array.get(targetWeights, chartIndex)
 
-plot(plotchartWeight, title="Target weight for chart symbol", style=plot.style_steps, color=plotchartWeight >= 0 ? color.new(color.lime, 0) : color.new(color.red, 0))
+plot(plotchartWeight, title="Target weight for chart symbol", style=plot.style_histogram, color=plotchartWeight >= 0 ? color.new(color.lime, 0) : color.new(color.red, 0))
 
 
 if not na(chartIndex) and (isRebalance() or barstate.isfirst)
