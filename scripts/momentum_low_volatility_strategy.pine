@@ -211,12 +211,11 @@ plot(longCutoff, title="Long cutoff score", color=color.new(color.lime, 60), dis
 plot(shortCutoff, title="Short cutoff score", color=color.new(color.red, 60), display=display.status_line)
 
 // Table of top & bottom selections
-var table infoTable = table.new(position.top_right, 4, 12, border_color=color.new(color.gray, 70))
+const int tableCols = 4
+const int tableRows = 12
+var table infoTable = table.new(position.top_right, tableCols, tableRows, border_color=color.new(color.gray, 70))
 if barstate.islast
-    int totalRows = table.height(infoTable)
-    int totalCols = table.width(infoTable)
-    if totalRows > 0 and totalCols > 0
-        table.clear(infoTable, 0, 0, totalRows - 1, totalCols - 1)
+    table.clear(infoTable, 0, 0, tableRows - 1, tableCols - 1)
     table.cell(infoTable, 0, 0, "Rank", text_color=color.white, text_size=size.small, bgcolor=color.new(color.silver, 40))
     table.cell(infoTable, 1, 0, "Ticker", text_color=color.white, text_size=size.small, bgcolor=color.new(color.silver, 40))
     table.cell(infoTable, 2, 0, "Momentum", text_color=color.white, text_size=size.small, bgcolor=color.new(color.silver, 40))
