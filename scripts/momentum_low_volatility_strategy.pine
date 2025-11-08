@@ -1,4 +1,4 @@
-//@version=5
+//@version=6
 strategy("Cross-Sectional Momentum + Low Volatility Portfolio", overlay=false, initial_capital=100000, default_qty_type=strategy.percent_of_equity, default_qty_value=100, calc_on_every_tick=false, process_orders_on_close=true, pyramiding=0)
 // Quantitative factor model that ranks a custom universe by 12-month momentum (skip the most recent month)
 // and 63-day low volatility. Rebalances monthly/quarterly and trades the chart symbol when it is selected.
@@ -121,7 +121,6 @@ var bool hasUniverseWarning = false
 
 // Preload security data
 priceSeries(int idx) => request.security(array.get(tickers, idx), timeframe.period, close)
-atrSeries(int idx, int length) => request.security(array.get(tickers, idx), timeframe.period, ta.atr(length))
 
 // Determine rebalance schedule
 isRebalance() =>
@@ -130,17 +129,20 @@ isRebalance() =>
     else
         ta.change(time("3M")) != 0
 
-// === Factor computation on rebalance ===
+// === Factor computation ===
 if barstate.isfirst and universeSize == 0
     runtime.error("Universe list is empty. Please provide at least one ticker.")
 
-if isRebalance() or barstate.isfirst
-    for i = 0 to universeSize - 1
-        seriesPrice = priceSeries(i)
-        mom = computeMomentum(seriesPrice, momentumLookback, skipRecent)
-        vol = computeVolatility(seriesPrice, volLookback)
-        array.set(momentumValues, i, mom)
-        array.set(volatilityValues, i, vol)
+rebalanceNow = isRebalance() or barstate.isfirst
+
+for i = 0 to universeSize - 1
+    float seriesPrice = priceSeries(i)
+    float mom = computeMomentum(seriesPrice, momentumLookback, skipRecent)
+    float vol = computeVolatility(seriesPrice, volLookback)
+    array.set(momentumValues, i, mom)
+    array.set(volatilityValues, i, vol)
+
+if rebalanceNow
     for i = 0 to universeSize - 1
         array.set(momentumRanks, i, percentileRank(momentumValues, i, true))
         array.set(volatilityRanks, i, percentileRank(volatilityValues, i, false))
@@ -172,22 +174,22 @@ float plotchartWeight = na
 if not na(chartIndex)
     plotchartWeight := array.get(targetWeights, chartIndex)
 
-plot(plotchartWeight, title="Target weight for chart symbol", style=plot.style_histogram, color=plotchartWeight >= 0 ? color.new(color.lime, 0) : color.new(color.red, 0))
+color plotWeightColor = na(plotchartWeight) ? color.new(color.gray, 70) : plotchartWeight >= 0 ? color.new(color.lime, 0) : color.new(color.red, 0)
+plot(plotchartWeight, title="Target weight for chart symbol", style=plot.style_histogram, color=plotWeightColor)
 
-
-if not na(chartIndex) and (isRebalance() or barstate.isfirst)
+if not na(chartIndex) and rebalanceNow
     float targetWeight = array.get(targetWeights, chartIndex)
     float capital = strategy.equity
-    float currentPrice = priceSeries(chartIndex)
-    float atrValue = useVolPositionSizing ? atrSeries(chartIndex, atrLength) : na
-    float positionPercent = math.abs(targetWeight) * 100.0
-    if useVolPositionSizing and math.abs(targetWeight) > 0 and not na(atrValue) and atrValue > 0 and capital > 0 and not na(currentPrice) and currentPrice > 0
+    float currentPrice = close
+    float atrValue = useVolPositionSizing ? ta.atr(atrLength) : na
+    float positionPercent = not na(targetWeight) ? math.abs(targetWeight) * 100.0 : 0.0
+    if useVolPositionSizing and not na(targetWeight) and math.abs(targetWeight) > 0 and not na(atrValue) and atrValue > 0 and capital > 0 and not na(currentPrice) and currentPrice > 0
         dollarRisk = capital * (riskPerTradePct / 100.0)
         positionSharesFromRisk = dollarRisk / atrValue
         atrPercent = positionSharesFromRisk * currentPrice / capital * 100.0
         positionPercent := math.min(positionPercent, atrPercent)
     float positionQty = 0.0
-    if not na(currentPrice) and currentPrice > 0 and positionPercent > 0 and capital > 0
+    if not na(currentPrice) and currentPrice > 0 and not na(positionPercent) and positionPercent > 0 and capital > 0
         float positionValue = capital * (positionPercent / 100.0)
         positionQty := positionValue / currentPrice
     if targetWeight > 0 and positionQty > 0
@@ -199,7 +201,6 @@ if not na(chartIndex) and (isRebalance() or barstate.isfirst)
     else
         strategy.close("Long")
         strategy.close("Short")
-
 
 if na(chartIndex) and not hasUniverseWarning
     label.new(bar_index, close, text="The chart symbol is not part of the selected universe.", style=label.style_label_center, color=color.new(color.orange, 0), textcolor=color.black)
