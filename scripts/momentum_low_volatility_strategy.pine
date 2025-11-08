@@ -118,6 +118,8 @@ var float[] targetWeights = array.new_float(universeSize, 0.0)
 var float longCutoff = na
 var float shortCutoff = na
 var bool hasUniverseWarning = false
+var int tradeSignalCount = 0
+var label infoLabel = na
 
 // Preload security data
 priceSeries(int idx) => request.security(array.get(tickers, idx), timeframe.period, close)
@@ -195,16 +197,31 @@ if not na(chartIndex) and rebalanceNow
     if targetWeight > 0 and positionQty > 0
         strategy.entry("Long", strategy.long, qty=positionQty)
         strategy.close("Short")
+        tradeSignalCount += 1
     else if targetWeight < 0 and allowShorts and positionQty > 0
         strategy.entry("Short", strategy.short, qty=positionQty)
         strategy.close("Long")
+        tradeSignalCount += 1
     else
         strategy.close("Long")
         strategy.close("Short")
 
 if na(chartIndex) and not hasUniverseWarning
-    label.new(bar_index, close, text="The chart symbol is not part of the selected universe.", style=label.style_label_center, color=color.new(color.orange, 0), textcolor=color.black)
+    infoLabel := label.new(bar_index, close, text="The chart symbol is not part of the selected universe.", style=label.style_label_center, color=color.new(color.orange, 0), textcolor=color.black)
     hasUniverseWarning := true
+
+if barstate.islast
+    float chartMomentum = not na(chartIndex) ? array.get(momentumValues, chartIndex) : na
+    float chartVol = not na(chartIndex) ? array.get(volatilityValues, chartIndex) : na
+    bool lacksHistory = not na(chartIndex) and (na(chartMomentum) or na(chartVol))
+    if not na(chartIndex) and (tradeSignalCount == 0 or lacksHistory)
+        string helpText = lacksHistory ? "No trades yet — the chart symbol needs at least (lookback + skip) bars of history." : "No trades triggered. Lower the top/bottom percentiles or switch to a ticker that ranks within the selected thresholds."
+        if infoLabel == na
+            infoLabel := label.new(bar_index, close, text=helpText, style=label.style_label_center, color=color.new(color.orange, 0), textcolor=color.black)
+        else
+            label.set_x(infoLabel, bar_index)
+            label.set_y(infoLabel, close)
+            label.set_text(infoLabel, helpText)
 
 // === Analytics ===
 plot(array.size(tickers), title="Universe Size", display=display.status_line)
