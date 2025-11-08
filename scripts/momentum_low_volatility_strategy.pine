@@ -176,22 +176,25 @@ plot(plotchartWeight, title="Target weight for chart symbol", style=plot.style_h
 
 
 if not na(chartIndex) and (isRebalance() or barstate.isfirst)
-    targetWeight = array.get(targetWeights, chartIndex)
-    atrValue = useVolPositionSizing ? atrSeries(chartIndex, atrLength) : na
-    capital = strategy.equity
-    qtyPercent = math.abs(targetWeight) * 100.0
-    if useVolPositionSizing and math.abs(targetWeight) > 0 and not na(atrValue) and atrValue > 0 and capital > 0
+    float targetWeight = array.get(targetWeights, chartIndex)
+    float capital = strategy.equity
+    float currentPrice = priceSeries(chartIndex)
+    float atrValue = useVolPositionSizing ? atrSeries(chartIndex, atrLength) : na
+    float positionPercent = math.abs(targetWeight) * 100.0
+    if useVolPositionSizing and math.abs(targetWeight) > 0 and not na(atrValue) and atrValue > 0 and capital > 0 and not na(currentPrice) and currentPrice > 0
         dollarRisk = capital * (riskPerTradePct / 100.0)
-        currentPrice = priceSeries(chartIndex)
-        if not na(currentPrice) and currentPrice > 0
-            positionShares = dollarRisk / atrValue
-            atrPercent = positionShares * currentPrice / capital * 100.0
-            qtyPercent := math.min(qtyPercent, atrPercent)
-    if targetWeight > 0 and qtyPercent > 0
-        strategy.entry("Long", strategy.long, qty_percent=qtyPercent)
+        positionSharesFromRisk = dollarRisk / atrValue
+        atrPercent = positionSharesFromRisk * currentPrice / capital * 100.0
+        positionPercent := math.min(positionPercent, atrPercent)
+    float positionQty = 0.0
+    if not na(currentPrice) and currentPrice > 0 and positionPercent > 0 and capital > 0
+        float positionValue = capital * (positionPercent / 100.0)
+        positionQty := positionValue / currentPrice
+    if targetWeight > 0 and positionQty > 0
+        strategy.entry("Long", strategy.long, qty=positionQty)
         strategy.close("Short")
-    else if targetWeight < 0 and allowShorts and qtyPercent > 0
-        strategy.entry("Short", strategy.short, qty_percent=qtyPercent)
+    else if targetWeight < 0 and allowShorts and positionQty > 0
+        strategy.entry("Short", strategy.short, qty=positionQty)
         strategy.close("Long")
     else
         strategy.close("Long")
@@ -210,7 +213,10 @@ plot(shortCutoff, title="Short cutoff score", color=color.new(color.red, 60), di
 // Table of top & bottom selections
 var table infoTable = table.new(position.top_right, 4, 12, border_color=color.new(color.gray, 70))
 if barstate.islast
-    table.clear(infoTable)
+    int totalRows = table.height(infoTable)
+    int totalCols = table.width(infoTable)
+    if totalRows > 0 and totalCols > 0
+        table.clear(infoTable, 0, 0, totalRows - 1, totalCols - 1)
     table.cell(infoTable, 0, 0, "Rank", text_color=color.white, text_size=size.small, bgcolor=color.new(color.silver, 40))
     table.cell(infoTable, 1, 0, "Ticker", text_color=color.white, text_size=size.small, bgcolor=color.new(color.silver, 40))
     table.cell(infoTable, 2, 0, "Momentum", text_color=color.white, text_size=size.small, bgcolor=color.new(color.silver, 40))
@@ -218,7 +224,7 @@ if barstate.islast
 
     int[] sortedIndices = sortIndicesByScore(combinedScores, true)
 
-    rowsToShow = math.min(5, universeSize)
+    int rowsToShow = math.min(5, universeSize)
     for row = 0 to rowsToShow - 1
         idx = array.get(sortedIndices, row)
         table.cell(infoTable, 0, row + 1, str.tostring(row + 1))
