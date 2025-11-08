@@ -121,9 +121,6 @@ var bool hasUniverseWarning = false
 var int tradeSignalCount = 0
 var label infoLabel = na
 
-// Preload security data
-priceSeries(int idx) => request.security(array.get(tickers, idx), timeframe.period, close)
-
 // Determine rebalance schedule
 isRebalance() =>
     if rebalanceFrequency == "Monthly"
@@ -138,9 +135,9 @@ if barstate.isfirst and universeSize == 0
 rebalanceNow = isRebalance() or barstate.isfirst
 
 for i = 0 to universeSize - 1
-    float seriesPrice = priceSeries(i)
-    float mom = computeMomentum(seriesPrice, momentumLookback, skipRecent)
-    float vol = computeVolatility(seriesPrice, volLookback)
+    string symbol = array.get(tickers, i)
+    float mom = request.security(symbol, timeframe.period, computeMomentum(close, momentumLookback, skipRecent))
+    float vol = request.security(symbol, timeframe.period, computeVolatility(close, volLookback))
     array.set(momentumValues, i, mom)
     array.set(volatilityValues, i, vol)
 
@@ -179,11 +176,13 @@ if not na(chartIndex)
 color plotWeightColor = na(plotchartWeight) ? color.new(color.gray, 70) : plotchartWeight >= 0 ? color.new(color.lime, 0) : color.new(color.red, 0)
 plot(plotchartWeight, title="Target weight for chart symbol", style=plot.style_histogram, color=plotWeightColor)
 
+float chartAtr = ta.atr(atrLength)
+
 if not na(chartIndex) and rebalanceNow
     float targetWeight = array.get(targetWeights, chartIndex)
     float capital = strategy.equity
     float currentPrice = close
-    float atrValue = useVolPositionSizing ? ta.atr(atrLength) : na
+    float atrValue = useVolPositionSizing ? chartAtr : na
     float positionPercent = not na(targetWeight) ? math.abs(targetWeight) * 100.0 : 0.0
     if useVolPositionSizing and not na(targetWeight) and math.abs(targetWeight) > 0 and not na(atrValue) and atrValue > 0 and capital > 0 and not na(currentPrice) and currentPrice > 0
         dollarRisk = capital * (riskPerTradePct / 100.0)
@@ -216,7 +215,7 @@ if barstate.islast
     bool lacksHistory = not na(chartIndex) and (na(chartMomentum) or na(chartVol))
     if not na(chartIndex) and (tradeSignalCount == 0 or lacksHistory)
         string helpText = lacksHistory ? "No trades yet — the chart symbol needs at least (lookback + skip) bars of history." : "No trades triggered. Lower the top/bottom percentiles or switch to a ticker that ranks within the selected thresholds."
-        if infoLabel == na
+        if na(infoLabel)
             infoLabel := label.new(bar_index, close, text=helpText, style=label.style_label_center, color=color.new(color.orange, 0), textcolor=color.black)
         else
             label.set_x(infoLabel, bar_index)
