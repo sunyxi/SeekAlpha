@@ -31,9 +31,17 @@ mfiBullThreshold = input.float(55.0, "MFI Bull Threshold", minval=0, maxval=100)
 mfiBearThreshold = input.float(45.0, "MFI Bear Threshold", minval=0, maxval=100)
 
 // === DMI / ADX ===
-plusDI = ta.diPlus(dmiLength)
-minusDI = ta.diMinus(dmiLength)
-adx = ta.adx(dmiLength)
+prevHigh = nz(high[1], high)
+prevLow = nz(low[1], low)
+upMove = math.max(high - prevHigh, 0.0)
+downMove = math.max(prevLow - low, 0.0)
+plusDM = upMove > downMove ? upMove : 0.0
+minusDM = downMove > upMove ? downMove : 0.0
+atr = ta.rma(ta.tr(true), dmiLength)
+plusDI = atr != 0.0 ? 100.0 * ta.rma(plusDM, dmiLength) / atr : 0.0
+minusDI = atr != 0.0 ? 100.0 * ta.rma(minusDM, dmiLength) / atr : 0.0
+dx = plusDI + minusDI != 0.0 ? 100.0 * math.abs(plusDI - minusDI) / (plusDI + minusDI) : 0.0
+adx = ta.rma(dx, dmiLength)
 trendStrong = adx > adxThreshold
 dmiBull = ta.crossover(plusDI, minusDI)
 dmiBear = ta.crossunder(plusDI, minusDI)
@@ -43,7 +51,7 @@ conversionLine = (ta.highest(high, conversionPeriods) + ta.lowest(low, conversio
 baseLine = (ta.highest(high, basePeriods) + ta.lowest(low, basePeriods)) / 2.0
 leadSpanA = (conversionLine + baseLine) / 2.0
 leadSpanB = (ta.highest(high, laggingSpan2Periods) + ta.lowest(low, laggingSpan2Periods)) / 2.0
-laggingSpan = close[displacement]
+laggingSpan = bar_index >= displacement ? close[displacement] : na
 priceAboveCloud = close > math.max(leadSpanA, leadSpanB)
 priceBelowCloud = close < math.min(leadSpanA, leadSpanB)
 tenkanBull = ta.crossover(conversionLine, baseLine)
@@ -58,16 +66,16 @@ bbUpper = bbBasis + bbDev
 bbLower = bbBasis - bbDev
 
 tr = ta.tr(true)
-range = ta.sma(tr, kcLength) * kcMult
+kcRange = ta.sma(tr, kcLength) * kcMult
 kcBasis = ta.sma(source, kcLength)
-kcUpper = kcBasis + range
-kcLower = kcBasis - range
+kcUpper = kcBasis + kcRange
+kcLower = kcBasis - kcRange
 
 squeezeOn = bbLower > kcLower and bbUpper < kcUpper
 squeezeOff = bbLower < kcLower and bbUpper > kcUpper
 squeezeReleased = not squeezeOn and squeezeOn[1]
 
-momentum = ta.linreg(source - source[momentumLength], momentumLength, 0)
+momentum = ta.linreg(source - nz(source[momentumLength], source), momentumLength, 0)
 squeezeBull = squeezeReleased and momentum > 0
 squeezeBear = squeezeReleased and momentum < 0
 
