@@ -149,14 +149,7 @@ plot(leadSpanB, title="Leading Span B", color=color.new(color.red, 50))
 plot(superTrendLine, title="SuperTrend", color=superTrendBull ? color.green : color.red)
 
 plot(momentum, title="Squeeze Momentum", color=momentum >= 0 ? color.lime : color.maroon, style=plot.style_columns, linewidth=2)
-plotshape(
-    squeezeOn,
-    title="Squeeze On",
-    location=location.bottom,
-    style=shape.circle,
-    size=size.tiny,
-    color=color.red
-)
+plotshape(squeezeOn, title="Squeeze On", location=location.bottom, style=shape.circle, size=size.tiny, color=color.red)
 plotshape(
     squeezeReleased,
     title="Squeeze Released",
