@@ -38,8 +38,10 @@ downMove = math.max(prevLow - low, 0.0)
 plusDM = upMove > downMove ? upMove : 0.0
 minusDM = downMove > upMove ? downMove : 0.0
 atr = ta.rma(ta.tr(true), dmiLength)
-plusDI = atr != 0.0 ? 100.0 * ta.rma(plusDM, dmiLength) / atr : 0.0
-minusDI = atr != 0.0 ? 100.0 * ta.rma(minusDM, dmiLength) / atr : 0.0
+smoothedPlusDM = ta.rma(plusDM, dmiLength)
+smoothedMinusDM = ta.rma(minusDM, dmiLength)
+plusDI = atr != 0.0 ? 100.0 * smoothedPlusDM / atr : 0.0
+minusDI = atr != 0.0 ? 100.0 * smoothedMinusDM / atr : 0.0
 dx = plusDI + minusDI != 0.0 ? 100.0 * math.abs(plusDI - minusDI) / (plusDI + minusDI) : 0.0
 adx = ta.rma(dx, dmiLength)
 trendStrong = adx > adxThreshold
@@ -85,12 +87,27 @@ superTrendBull = superTrendDirection == 1
 superTrendBear = superTrendDirection == -1
 
 // === Volume Confirmation ===
-obv = ta.obv(close, volume)
-obvSignal = ta.sma(obv, obvSmoothLength)
-obvBull = obv > obvSignal
-obvBear = obv < obvSignal
+var float obvSeries = 0.0
+priceChange = close - nz(close[1], close)
+obvStep = priceChange > 0 ? volume : priceChange < 0 ? -volume : 0.0
+obvSeries := nz(obvSeries[1], 0.0) + obvStep
+obvSignal = ta.sma(obvSeries, obvSmoothLength)
+obvBull = obvSeries > obvSignal
+obvBear = obvSeries < obvSignal
 
-mfi = ta.mfi(high, low, close, volume, mfiLength)
+typicalPrice = (high + low + close) / 3.0
+rawMoneyFlow = typicalPrice * volume
+positiveMoneyFlow = typicalPrice > nz(typicalPrice[1]) ? rawMoneyFlow : 0.0
+negativeMoneyFlow = typicalPrice < nz(typicalPrice[1]) ? rawMoneyFlow : 0.0
+positiveMoneyFlowSum = ta.sum(positiveMoneyFlow, mfiLength)
+negativeMoneyFlowSum = ta.sum(negativeMoneyFlow, mfiLength)
+moneyFlowRatio = negativeMoneyFlowSum != 0.0 ? positiveMoneyFlowSum / negativeMoneyFlowSum : positiveMoneyFlowSum
+moneyFlowIndex = 0.0
+if negativeMoneyFlowSum == 0.0
+    moneyFlowIndex := positiveMoneyFlowSum == 0.0 ? 50.0 : 100.0
+else
+    moneyFlowIndex := 100.0 - (100.0 / (1.0 + moneyFlowRatio))
+mfi = moneyFlowIndex
 mfiBull = mfi > mfiBullThreshold
 mfiBear = mfi < mfiBearThreshold
 
@@ -136,8 +153,7 @@ plotshape(
     location=location.bottom,
     style=shape.circle,
     size=size.tiny,
-    color=color.red,
-    transp=0
+    color=color.red
 )
 plotshape(
     squeezeReleased,
@@ -145,11 +161,10 @@ plotshape(
     location=location.bottom,
     style=shape.circle,
     size=size.tiny,
-    color=color.green,
-    transp=0
+    color=color.green
 )
 
-plot(obv, title="OBV", color=color.new(color.blue, 0))
+plot(obvSeries, title="OBV", color=color.new(color.blue, 0))
 plot(obvSignal, title="OBV Signal", color=color.new(color.gray, 0))
 
 hline(mfiBullThreshold, 'MFI Bull Threshold', color=color.green)
