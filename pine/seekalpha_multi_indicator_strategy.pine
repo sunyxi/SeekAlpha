@@ -99,8 +99,10 @@ typicalPrice = (high + low + close) / 3.0
 rawMoneyFlow = typicalPrice * volume
 positiveMoneyFlow = typicalPrice > nz(typicalPrice[1]) ? rawMoneyFlow : 0.0
 negativeMoneyFlow = typicalPrice < nz(typicalPrice[1]) ? rawMoneyFlow : 0.0
-positiveMoneyFlowSum = ta.sum(positiveMoneyFlow, mfiLength)
-negativeMoneyFlowSum = ta.sum(negativeMoneyFlow, mfiLength)
+positiveMoneyFlowCum = ta.cum(positiveMoneyFlow)
+negativeMoneyFlowCum = ta.cum(negativeMoneyFlow)
+positiveMoneyFlowSum = positiveMoneyFlowCum - nz(positiveMoneyFlowCum[mfiLength], 0.0)
+negativeMoneyFlowSum = negativeMoneyFlowCum - nz(negativeMoneyFlowCum[mfiLength], 0.0)
 moneyFlowRatio = negativeMoneyFlowSum != 0.0 ? positiveMoneyFlowSum / negativeMoneyFlowSum : positiveMoneyFlowSum
 moneyFlowIndex = 0.0
 if negativeMoneyFlowSum == 0.0
