@@ -1,7 +1,12 @@
 //@version=6
-strategy("SeekAlpha Multi-Indicator Strategy", overlay=true, max_bars_back=200, initial_capital=100000, commission_type=strategy.commission.percent, commission_value=0.05)
+strategy("SeekAlpha Multi-Indicator Strategy", overlay=true, max_bars_back=200, initial_capital=100000, commission_type=strategy.commission.percent, commission_value=0.05, default_qty_type=strategy.percent_of_equity, default_qty_value=10, pyramiding=0)
 
 // === Inputs ===
+// General
+enableLongs = input.bool(true, "Enable Long Trades")
+enableShorts = input.bool(true, "Enable Short Trades")
+useSuperTrendStops = input.bool(true, "Use SuperTrend Trailing Stops")
+
 // DMI / ADX
 dmiLength = input.int(14, "DMI Length", minval=5)
 adxThreshold = input.float(25.0, "ADX Trend Threshold", step=0.5)
@@ -121,20 +126,30 @@ bullSignal = bullTrendContext and tenkanBull and dmiBull and squeezeBull and obv
 bearSignal = bearTrendContext and tenkanBear and dmiBear and squeezeBear and obvBear and mfiBear
 
 // === Strategy Execution ===
-if bullSignal
+allowLongEntry = enableLongs and bullSignal and strategy.position_size <= 0
+allowShortEntry = enableShorts and bearSignal and strategy.position_size >= 0
+
+if allowLongEntry
+    if strategy.position_size < 0
+        strategy.close("Short", comment="Flip to Long")
     strategy.entry("Long", strategy.long)
 
-if bearSignal
+if allowShortEntry
     if strategy.position_size > 0
-        strategy.close("Long")
+        strategy.close("Long", comment="Flip to Short")
     strategy.entry("Short", strategy.short)
 
-// Optional exit when opposite conditions trigger
 if bullSignal and strategy.position_size < 0
-    strategy.close("Short")
+    strategy.close("Short", comment="Bullish Exit")
 
 if bearSignal and strategy.position_size > 0
-    strategy.close("Long")
+    strategy.close("Long", comment="Bearish Exit")
+
+if useSuperTrendStops and not na(superTrendLine)
+    if strategy.position_size > 0 and superTrendLine < close
+        strategy.exit("Long Stop", from_entry="Long", stop=superTrendLine)
+    if strategy.position_size < 0 and superTrendLine > close
+        strategy.exit("Short Stop", from_entry="Short", stop=superTrendLine)
 
 // === Plotting ===
 plot(plusDI, color=color.new(color.green, 0), title="DI+")
