@@ -1,0 +1,175 @@
+//@version=6
+strategy("SeekAlpha Multi-Indicator Strategy", overlay=true, max_bars_back=200, initial_capital=100000, commission_type=strategy.commission.percent, commission_value=0.05)
+
+// === Inputs ===
+// DMI / ADX
+dmiLength = input.int(14, "DMI Length", minval=5)
+adxThreshold = input.float(25.0, "ADX Trend Threshold", step=0.5)
+
+// Ichimoku
+conversionPeriods = input.int(9, "Ichimoku Conversion Periods", minval=1)
+basePeriods = input.int(26, "Ichimoku Base Periods", minval=1)
+laggingSpan2Periods = input.int(52, "Ichimoku Span B Periods", minval=1)
+displacement = input.int(26, "Ichimoku Displacement", minval=1)
+
+// TTM Squeeze
+bbLength = input.int(20, "BB Length", minval=1)
+bbMult = input.float(2.0, "BB Multiplier", step=0.1)
+kcLength = input.int(20, "KC Length", minval=1)
+kcMult = input.float(1.5, "KC Multiplier", step=0.1)
+momentumLength = input.int(20, "Squeeze Momentum Length", minval=1)
+source = input.source(close, "Momentum Source")
+
+// SuperTrend
+superTrendAtrPeriod = input.int(10, "SuperTrend ATR Period", minval=1)
+superTrendMultiplier = input.float(3.0, "SuperTrend Multiplier", step=0.1)
+
+// Volume Confirmation
+obvSmoothLength = input.int(21, "OBV Smoothing Length", minval=1)
+mfiLength = input.int(14, "MFI Length", minval=1)
+mfiBullThreshold = input.float(55.0, "MFI Bull Threshold", minval=0, maxval=100)
+mfiBearThreshold = input.float(45.0, "MFI Bear Threshold", minval=0, maxval=100)
+
+// === DMI / ADX ===
+plusDI = ta.diPlus(dmiLength)
+minusDI = ta.diMinus(dmiLength)
+adx = ta.adx(dmiLength)
+trendStrong = adx > adxThreshold
+dmiBull = ta.crossover(plusDI, minusDI)
+dmiBear = ta.crossunder(plusDI, minusDI)
+
+// === Ichimoku ===
+conversionLine = (ta.highest(high, conversionPeriods) + ta.lowest(low, conversionPeriods)) / 2.0
+baseLine = (ta.highest(high, basePeriods) + ta.lowest(low, basePeriods)) / 2.0
+leadSpanA = (conversionLine + baseLine) / 2.0
+leadSpanB = (ta.highest(high, laggingSpan2Periods) + ta.lowest(low, laggingSpan2Periods)) / 2.0
+laggingSpan = close[displacement]
+priceAboveCloud = close > math.max(leadSpanA, leadSpanB)
+priceBelowCloud = close < math.min(leadSpanA, leadSpanB)
+tenkanBull = ta.crossover(conversionLine, baseLine)
+tenkanBear = ta.crossunder(conversionLine, baseLine)
+lagBull = bar_index >= displacement ? close > laggingSpan : false
+lagBear = bar_index >= displacement ? close < laggingSpan : false
+
+// === TTM Squeeze ===
+bbBasis = ta.sma(source, bbLength)
+bbDev = bbMult * ta.stdev(source, bbLength)
+bbUpper = bbBasis + bbDev
+bbLower = bbBasis - bbDev
+
+tr = ta.tr(true)
+range = ta.sma(tr, kcLength) * kcMult
+kcBasis = ta.sma(source, kcLength)
+kcUpper = kcBasis + range
+kcLower = kcBasis - range
+
+squeezeOn = bbLower > kcLower and bbUpper < kcUpper
+squeezeOff = bbLower < kcLower and bbUpper > kcUpper
+squeezeReleased = not squeezeOn and squeezeOn[1]
+
+momentum = ta.linreg(source - source[momentumLength], momentumLength, 0)
+squeezeBull = squeezeReleased and momentum > 0
+squeezeBear = squeezeReleased and momentum < 0
+
+// === SuperTrend ===
+[superTrendLine, superTrendDirection] = ta.supertrend(superTrendMultiplier, superTrendAtrPeriod)
+superTrendBull = superTrendDirection == 1
+superTrendBear = superTrendDirection == -1
+
+// === Volume Confirmation ===
+obv = ta.obv(close, volume)
+obvSignal = ta.sma(obv, obvSmoothLength)
+obvBull = obv > obvSignal
+obvBear = obv < obvSignal
+
+mfi = ta.mfi(high, low, close, volume, mfiLength)
+mfiBull = mfi > mfiBullThreshold
+mfiBear = mfi < mfiBearThreshold
+
+// === Composite Signals ===
+bullTrendContext = trendStrong and priceAboveCloud and superTrendBull and lagBull
+bearTrendContext = trendStrong and priceBelowCloud and superTrendBear and lagBear
+
+bullSignal = bullTrendContext and tenkanBull and dmiBull and squeezeBull and obvBull and mfiBull
+bearSignal = bearTrendContext and tenkanBear and dmiBear and squeezeBear and obvBear and mfiBear
+
+// === Strategy Execution ===
+if bullSignal
+    strategy.entry("Long", strategy.long)
+
+if bearSignal
+    if strategy.position_size > 0
+        strategy.close("Long")
+    strategy.entry("Short", strategy.short)
+
+// Optional exit when opposite conditions trigger
+if bullSignal and strategy.position_size < 0
+    strategy.close("Short")
+
+if bearSignal and strategy.position_size > 0
+    strategy.close("Long")
+
+// === Plotting ===
+plot(plusDI, color=color.new(color.green, 0), title="DI+")
+plot(minusDI, color=color.new(color.red, 0), title="DI-")
+plot(adx, color=color.new(color.yellow, 0), title="ADX")
+hline(adxThreshold, 'ADX Threshold', color=color.gray)
+
+plot(conversionLine, title="Conversion Line", color=color.new(color.teal, 0))
+plot(baseLine, title="Base Line", color=color.new(color.orange, 0))
+plot(leadSpanA, title="Leading Span A", color=color.new(color.green, 50))
+plot(leadSpanB, title="Leading Span B", color=color.new(color.red, 50))
+plot(superTrendLine, title="SuperTrend", color=superTrendBull ? color.green : color.red)
+
+plot(momentum, title="Squeeze Momentum", color=momentum >= 0 ? color.lime : color.maroon, style=plot.style_columns, linewidth=2)
+plotshape(
+    squeezeOn,
+    title="Squeeze On",
+    location=location.bottom,
+    style=shape.circle,
+    size=size.tiny,
+    color=color.red,
+    transp=0
+)
+plotshape(
+    squeezeReleased,
+    title="Squeeze Released",
+    location=location.bottom,
+    style=shape.circle,
+    size=size.tiny,
+    color=color.green,
+    transp=0
+)
+
+plot(obv, title="OBV", color=color.new(color.blue, 0))
+plot(obvSignal, title="OBV Signal", color=color.new(color.gray, 0))
+
+hline(mfiBullThreshold, 'MFI Bull Threshold', color=color.green)
+hline(mfiBearThreshold, 'MFI Bear Threshold', color=color.red)
+plot(mfi, title="MFI", color=color.new(color.purple, 0))
+
+// === Alerts ===
+alertcondition(bullSignal, title="Composite Bullish Entry", message="SeekAlpha Strategy Bullish Signal")
+alertcondition(bearSignal, title="Composite Bearish Entry", message="SeekAlpha Strategy Bearish Signal")
+
+// === Visual Markers ===
+plotshape(
+    bullSignal,
+    title="Buy Signal",
+    text="BUY",
+    location=location.belowbar,
+    color=color.new(color.green, 0),
+    style=shape.labelup,
+    size=size.normal
+)
+plotshape(
+    bearSignal,
+    title="Sell Signal",
+    text="SELL",
+    location=location.abovebar,
+    color=color.new(color.red, 0),
+    style=shape.labeldown,
+    size=size.normal
+)
+
+bgcolor(bullTrendContext ? color.new(color.green, 90) : bearTrendContext ? color.new(color.red, 90) : na)
