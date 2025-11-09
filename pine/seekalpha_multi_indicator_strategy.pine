@@ -150,14 +150,7 @@ plot(superTrendLine, title="SuperTrend", color=superTrendBull ? color.green : co
 
 plot(momentum, title="Squeeze Momentum", color=momentum >= 0 ? color.lime : color.maroon, style=plot.style_columns, linewidth=2)
 plotshape(squeezeOn, title="Squeeze On", location=location.bottom, style=shape.circle, size=size.tiny, color=color.red)
-plotshape(
-    squeezeReleased,
-    title="Squeeze Released",
-    location=location.bottom,
-    style=shape.circle,
-    size=size.tiny,
-    color=color.green
-)
+plotshape(squeezeReleased, title="Squeeze Released", location=location.bottom, style=shape.circle, size=size.tiny, color=color.green)
 
 plot(obvSeries, title="OBV", color=color.new(color.blue, 0))
 plot(obvSignal, title="OBV Signal", color=color.new(color.gray, 0))
@@ -171,23 +164,7 @@ alertcondition(bullSignal, title="Composite Bullish Entry", message="SeekAlpha S
 alertcondition(bearSignal, title="Composite Bearish Entry", message="SeekAlpha Strategy Bearish Signal")
 
 // === Visual Markers ===
-plotshape(
-    bullSignal,
-    title="Buy Signal",
-    text="BUY",
-    location=location.belowbar,
-    color=color.new(color.green, 0),
-    style=shape.labelup,
-    size=size.normal
-)
-plotshape(
-    bearSignal,
-    title="Sell Signal",
-    text="SELL",
-    location=location.abovebar,
-    color=color.new(color.red, 0),
-    style=shape.labeldown,
-    size=size.normal
-)
+plotshape(bullSignal, title="Buy Signal", text="BUY", location=location.belowbar, color=color.new(color.green, 0), style=shape.labelup, size=size.normal)
+plotshape(bearSignal, title="Sell Signal", text="SELL", location=location.abovebar, color=color.new(color.red, 0), style=shape.labeldown, size=size.normal)
 
 bgcolor(bullTrendContext ? color.new(color.green, 90) : bearTrendContext ? color.new(color.red, 90) : na)
