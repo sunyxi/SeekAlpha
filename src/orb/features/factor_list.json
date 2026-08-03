@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-08-03T06:46:36.228241Z",
+  "fdr_q": 0.05,
+  "horizons_days": [
+    1,
+    5,
+    20
+  ],
+  "factors": [
+    "alpha003",
+    "alpha024",
+    "alpha032",
+    "alpha035",
+    "alpha042",
+    "alpha050"
+  ]
+}
