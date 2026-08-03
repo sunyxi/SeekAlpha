@@ -7,7 +7,7 @@
 
 ## 1. Layered Module Map
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────┐
 │  CLI Layer                                                          │
 │  orb <subcommand>  (scripts/local_pump.py · scripts/wf_select.py)  │
@@ -68,7 +68,7 @@
 
 ### ORB simulation pipeline (intraday)
 
-```
+```text
 Alpaca IEX API
    │  (alpaca-py, free paper keys)
    ▼
@@ -101,7 +101,7 @@ report JSON  →  Candidate | No-Go        [reports/<name>-wf.json]
 
 ### Factor research pipeline (daily) — M3 and later
 
-```
+```text
 Alpaca IEX daily bars (or derived from 1-min cache)
    │
    ▼
@@ -118,7 +118,7 @@ Factor feature list  →  (frozen)  →  meta-labeling feature pool [M4]
 
 ### ML training cycle (train-window only) — M4 and later
 
-```
+```text
 Each WF fold's training window
    ├── ORB features from trade records
    └── surviving daily factors aligned to entry date
@@ -142,7 +142,7 @@ Each WF fold's training window
 ## 3. Critical Invariants
 
 | # | Invariant | Where enforced |
-|---|-----------|---------------|
+| --- | --------- | -------------- |
 | 1 | **No future data**: ATR, RVOL, VWAP are point-in-time (computed from bars already seen before the signal bar closes) | `orb_core.py`, test suite |
 | 2 | **Next-bar entry**: signal at bar-t close → entry at bar-(t+1) open, same session only; stale signals die silently | `_step_candidate`, tests |
 | 3 | **Stop-first**: when a bar's range spans both stop and target, stop wins | `_step_candidate`, tests |
@@ -163,7 +163,7 @@ ML is confined to the **Validation Layer**, inside each fold's training window.
 It is never permitted to cross into the Strategy or Feature layers in a way that
 could observe outer test results.
 
-```
+```text
 Validation Layer
  ├── wf_select.py  (walk-forward evaluator, pure stdlib)
  └── ml/  [M4]
@@ -174,6 +174,7 @@ Validation Layer
 ```
 
 The ML sub-module:
+
 - Is retrained fresh for every WF fold on that fold's training window.
 - Uses purged time-series CV + embargo within the training window.
 - Has its search space, trial budget, model family, and feature pool
@@ -189,9 +190,9 @@ The ML sub-module:
 ADRs live in `docs/adr/`. Each third-party dependency introduction requires one.
 
 | ID | Status | Title |
-|----|--------|-------|
-| ADR-001 | Accepted | Use stdlib-only core to guarantee portability and determinism |
-| ADR-002 | Accepted | IEX feed for RVOL (self-consistent numerator/denominator) |
+| -- | ------ | ----- |
+| [ADR-001](adr/ADR-001-stdlib-only-core.md) | Accepted | Use stdlib-only core to guarantee portability and determinism |
+| [ADR-002](adr/ADR-002-iex-feed-rvol-consistency.md) | Accepted | IEX feed for RVOL (self-consistent numerator/denominator) |
 | ADR-003 | Pending (M3) | Introduce numpy in feature layer for Alpha-101 operators |
 | ADR-004 | Pending (M4) | Introduce scikit-learn / lightgbm for meta-labeling |
 | ADR-005 | Pending (M4) | Introduce optuna for Bayesian hyperparameter search |
