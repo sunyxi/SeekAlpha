@@ -45,6 +45,7 @@ from typing import Callable, Optional
 from zoneinfo import ZoneInfo
 
 from orb.core import Bar, SymbolEngine, default_candidate_grid, grid_spec_hash, SCHEMA_VERSION
+from orb.calendar import session_end as _calendar_session_end
 
 NY = ZoneInfo("America/New_York")
 RTH_START_TIME = datetime.min.time().replace(hour=9, minute=30)
@@ -226,14 +227,15 @@ def download_symbol(
 # ------------------------------------------------------------- consolidation
 
 def load_minute_bars(path: Path):
-    """Yield (ny_datetime_start, o, h, l, c, v) for RTH minutes, sorted."""
+    """Load RTH 1-min bars from a gzip CSV, honouring half-day session ends."""
     rows = []
     with gzip.open(path, "rt") as f:
         next(f)
         for line in f:
             ts, o, h, l, c, v = line.rstrip("\n").split(",")
             t = datetime.fromisoformat(ts).astimezone(NY)
-            if RTH_START <= t.time() < RTH_END:
+            sess_close = _calendar_session_end(t.date())  # 16:00 or 13:00
+            if RTH_START <= t.time() < sess_close:
                 rows.append((t, float(o), float(h), float(l),
                              float(c), float(v)))
     rows.sort(key=lambda r: r[0])
