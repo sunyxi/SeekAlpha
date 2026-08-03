@@ -3,14 +3,10 @@
 Runs with no QuantConnect SDK, no network, no account.
 """
 
-import sys
 import unittest
 from datetime import datetime, timedelta
-from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "core"))
-
-from orb_core import Bar, CandidateParams, SymbolEngine  # noqa: E402
+from orb.core import Bar, CandidateParams, SymbolEngine
 
 NY_OPEN = datetime(2024, 6, 3, 9, 30)
 

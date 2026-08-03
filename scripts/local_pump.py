@@ -39,13 +39,9 @@ import json
 import os
 import sys
 from datetime import datetime, time, timedelta
-from pathlib import Path
 from zoneinfo import ZoneInfo
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "core"))
-from orb_core import (  # noqa: E402
-    Bar, SymbolEngine, default_candidate_grid, grid_spec_hash, SCHEMA_VERSION,
-)
+from orb.core import Bar, SymbolEngine, default_candidate_grid, grid_spec_hash, SCHEMA_VERSION
 
 NY = ZoneInfo("America/New_York")
 RTH_START, RTH_END = time(9, 30), time(16, 0)
