@@ -26,3 +26,23 @@ jobs:
 
       - name: Run tests
         run: python -m pytest tests/ -v
+
+      - name: Validate committed reports
+        run: |
+          python3 -c "
+          import glob, subprocess, sys
+          reports = glob.glob('reports/*.json')
+          failed = []
+          for r in sorted(reports):
+              result = subprocess.run(
+                  ['python3', 'scripts/validate_report.py', '--report', r],
+                  capture_output=True, text=True,
+              )
+              print(result.stdout.strip() or result.stderr.strip())
+              if result.returncode != 0:
+                  failed.append(r)
+          if failed:
+              print('VALIDATION FAILED:', failed, file=sys.stderr)
+              sys.exit(1)
+          print(f'Validated {len(reports)} committed report(s).')
+          "
