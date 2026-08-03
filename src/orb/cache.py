@@ -1,13 +1,18 @@
-"""Cache integrity validation for 1-minute bar gzip CSV files.
+"""Cache management for 1-minute bar gzip CSV files.
 
 Public API
 ----------
-validate_cache(path, start, end) -> ValidationResult
+validate_cache(path, start, end)   -> ValidationResult
+find_cached(cache_dir, symbol)     -> Optional[tuple[Path, str, str]]
+read_all_rows(path)                -> list[str]
+write_gzip_csv(path, rows)         -> None
 """
 
 from __future__ import annotations
 
 import gzip
+import os
+import re
 import zlib
 from dataclasses import dataclass
 from datetime import datetime
@@ -15,6 +20,53 @@ from pathlib import Path
 from typing import Optional
 
 _EXPECTED_HEADER = "ts,open,high,low,close,volume"
+
+# Filename pattern: <SYMBOL>_<YYYY-MM-DD>_<YYYY-MM-DD>_1min.csv.gz
+_CACHE_PAT = re.compile(
+    r"^(.+)_(\d{4}-\d{2}-\d{2})_(\d{4}-\d{2}-\d{2})_1min\.csv\.gz$"
+)
+
+
+def find_cached(cache_dir: Path, symbol: str) -> Optional[tuple[Path, str, str]]:
+    """Find the most recent cached file for `symbol` in `cache_dir`.
+
+    Returns (path, start_str, end_str) where start_str and end_str are
+    ISO-8601 date strings parsed from the filename, or None if no matching
+    file exists.  When multiple files match (e.g. from a partial extend),
+    the one with the latest end date is returned.
+    """
+    cache_dir = Path(cache_dir)
+    best: Optional[tuple[Path, str, str]] = None
+    for p in cache_dir.iterdir() if cache_dir.exists() else []:
+        m = _CACHE_PAT.match(p.name)
+        if m and m.group(1) == symbol:
+            start, end = m.group(2), m.group(3)
+            if best is None or end > best[2]:
+                best = (p, start, end)
+    return best
+
+
+def read_all_rows(path: Path) -> list[str]:
+    """Return all data rows from a gzip CSV (header excluded, no trailing newline)."""
+    rows: list[str] = []
+    with gzip.open(path, "rt") as f:
+        next(f)  # skip header
+        for line in f:
+            line = line.rstrip("\n")
+            if line:
+                rows.append(line)
+    return rows
+
+
+def write_gzip_csv(path: Path, rows: list[str]) -> None:
+    """Write header + rows to a gzip CSV atomically via a .tmp file."""
+    tmp = Path(str(path) + ".tmp")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with gzip.open(tmp, "wt") as f:
+        f.write(_EXPECTED_HEADER + "\n")
+        for row in rows:
+            f.write(row + "\n")
+    os.replace(tmp, path)
 
 
 @dataclass(frozen=True)
