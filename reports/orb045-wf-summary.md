@@ -10,7 +10,7 @@
 | Parameter | Value |
 | --- | --- |
 | Folds | 16 (252-day train / 63-day test / 63-day step) |
-| Folds with candidate selection | 0 |
+| Folds with candidate selection | 5 (folds 4, 5, 6, 7, 8) |
 | Inner validation | Last 20 % of train window |
 
 ## Outer test metrics
@@ -36,10 +36,17 @@ realistic IEX execution costs (2.5 bps/side) the edge is fully erased. This is t
 expected baseline result for a pure price-breakout strategy without any selectivity
 overlay.
 
-Zero of sixteen walk-forward folds produced a passing candidate, indicating the
-current 192-parameter grid does not contain a robustly profitable regime under
-realistic costs. The 566 outer test trades are an aggregation artefact, not a stable
-selected strategy.
+Five of sixteen walk-forward folds produced a passing candidate (folds 4–8), with test
+windows covering 2023-03-06 to 2024-06-26. The remaining 11 folds selected no candidate:
+folds 1, 2, 3, 10, and 12 rejected all 192 candidates because no candidate achieved
+train Sharpe ≥ 0 in their respective training windows.
+
+The 566 outer test trades are concentrated in the ~15-month window from 2023-03 to 2024-06.
+`wf_select.py` only accumulates outer trades for folds where a candidate is selected; there
+is no fallback or bleed-through mechanism. The seven folds with test dates from 2024-06-27
+onward produced no selected candidate, with several showing 192/192 Sharpe rejections.
+This indicates the strategy's gross edge was regime-specific and had dissipated in the
+subsequent period.
 
 **Research implications for M3+:**
 
