@@ -1,5 +1,20 @@
 # Known Limitations
 
+## Raw report verification in CI
+
+Research JSON outputs under `reports/*.json` are create-only local artifacts and
+are gitignored, while `reports/manifest.json` is committed. A normal GitHub
+Actions checkout therefore validates the manifest structure but cannot verify
+the SHA-256 or schema of absent raw reports. `scripts/validate_manifest.py`
+reports this distinction explicitly as `manifest_status: passed` and
+`raw_reports_status: not-run`. Raw-report validation is `passed` only in an
+environment where every manifest entry is present, hash-matched, and every
+available `wf_select` report passes schema validation.
+
+The committed Markdown summaries and manifest hashes are audit pointers, not a
+substitute for retaining the corresponding immutable raw JSON in controlled
+research storage.
+
 ## Data pump non-idempotency (IEX backfill)
 
 ### Symptom

@@ -40,7 +40,16 @@ python3 scripts/local_pump.py --start 2021-01-04 --end 2026-06-30 \
 # 2) walk-forward 判定
 python3 scripts/wf_select.py --trades-dir runs/orb045 \
   --report-output reports/orb045-wf.json
+
+# 3) 验证 manifest，并如实报告本机原始 JSON 的覆盖状态
+python3 scripts/validate_manifest.py --manifest reports/manifest.json
 ```
+
+`reports/*.json` 默认不提交。因此普通 CI checkout 只能将 manifest
+结构报告为 `passed`，并将原始报告校验报告为 `not-run`。只有在
+manifest 中的全部原始报告实际存在、SHA-256 匹配，且
+`wf_select` 报告通过 schema 校验时，才会输出 `raw_reports_status:
+passed`。
 
 ## 预冻结的门槛（看到结果前不得修改）
 

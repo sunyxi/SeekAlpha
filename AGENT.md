@@ -108,6 +108,9 @@ pip install -e ".[ml]"     # adds scikit-learn/lightgbm/optuna (M4)
 - Every report must record: `grid_spec_hash`, fold definition, all gate values,
   cost scenarios, and (for ML reports) the search-space hash, trial budget,
   random seed, and library versions.
+- Manifest validation and raw-report validation are separate gates. A CI checkout
+  without the gitignored raw JSON reports must record raw-report validation as
+  `not-run`; it must never describe zero validated files as `passed`.
 - A `Candidate` decision is a licence to continue research, not a trading
   authorisation. This system has no order-routing capability and must never
   acquire one.
