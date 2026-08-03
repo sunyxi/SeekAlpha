@@ -1,5 +1,7 @@
 # SeekAlpha — ORB 研究与回测工具
 
+[![CI](https://github.com/sunyxi/SeekAlpha/actions/workflows/ci.yml/badge.svg)](https://github.com/sunyxi/SeekAlpha/actions/workflows/ci.yml)
+
 一次数据扫描模拟全部 192 个冻结候选，离线完成 nested walk-forward、
 成本敏感性与 Candidate / No-Go 判定。不依赖 QuantConnect。
 
