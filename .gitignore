@@ -19,8 +19,10 @@ data/
 # Run outputs (trade logs, not source)
 runs/
 
-# Reports (produced artefacts, not source)
-reports/
+# Reports — JSON/CSV outputs excluded; .md provenance docs are committed
+reports/*.json
+reports/*.csv
+reports/*.json.gz
 
 # Credentials
 .env
