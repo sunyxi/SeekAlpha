@@ -1,0 +1,15 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "orb-research"
+version = "0.1.0"
+description = "Opening Range Breakout research and backtesting tool"
+requires-python = ">=3.12"
+
+[project.optional-dependencies]
+data = ["alpaca-py"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
