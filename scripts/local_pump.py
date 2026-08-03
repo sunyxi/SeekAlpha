@@ -38,13 +38,21 @@ import gzip
 import json
 import os
 import sys
-from datetime import datetime, time, timedelta
+import time
+from datetime import date, datetime, timedelta
+from pathlib import Path
+from typing import Callable, Optional
 from zoneinfo import ZoneInfo
 
 from orb.core import Bar, SymbolEngine, default_candidate_grid, grid_spec_hash, SCHEMA_VERSION
 
 NY = ZoneInfo("America/New_York")
-RTH_START, RTH_END = time(9, 30), time(16, 0)
+RTH_START_TIME = datetime.min.time().replace(hour=9, minute=30)
+RTH_END_TIME   = datetime.min.time().replace(hour=16, minute=0)
+
+from datetime import time as _time
+RTH_START = _time(9, 30)
+RTH_END   = _time(16, 0)
 
 UNIVERSE = [
     "SPY", "QQQ", "IWM", "DIA",
@@ -58,11 +66,26 @@ UNIVERSE = [
 
 # --------------------------------------------------------------- downloading
 
-def download_symbol(symbol: str, start: str, end: str, cache_dir: Path) -> Path:
-    """Download 1-minute IEX bars to a gzip CSV cache; skip if cached."""
-    out = cache_dir / f"{symbol}_{start}_{end}_1min.csv.gz"
-    if out.exists():
-        return out
+def _month_ranges(start: str, end: str) -> list[tuple[datetime, datetime]]:
+    """Break [start, end] into monthly chunks for resumable downloading."""
+    s = date.fromisoformat(start)
+    e = date.fromisoformat(end)
+    ranges: list[tuple[datetime, datetime]] = []
+    cur = s.replace(day=1)
+    while cur <= e:
+        nxt = (cur.replace(month=cur.month + 1) if cur.month < 12
+               else cur.replace(year=cur.year + 1, month=1))
+        chunk_end = min(nxt - timedelta(days=1), e)
+        ranges.append((
+            datetime.combine(cur, RTH_START).replace(tzinfo=NY),
+            datetime.combine(chunk_end, RTH_END).replace(tzinfo=NY),
+        ))
+        cur = nxt
+    return ranges
+
+
+def _alpaca_fetch(symbol: str, start_dt: datetime, end_dt: datetime) -> list:
+    """Isolated Alpaca API call — imported lazily so core remains dep-free."""
     from alpaca.data.historical import StockHistoricalDataClient
     from alpaca.data.requests import StockBarsRequest
     from alpaca.data.timeframe import TimeFrame
@@ -74,22 +97,129 @@ def download_symbol(symbol: str, start: str, end: str, cache_dir: Path) -> Path:
     req = StockBarsRequest(
         symbol_or_symbols=symbol,
         timeframe=TimeFrame.Minute,
-        start=datetime.fromisoformat(start).replace(tzinfo=NY),
-        end=datetime.fromisoformat(end).replace(tzinfo=NY),
+        start=start_dt,
+        end=end_dt,
         adjustment="all",
         feed="iex",
     )
-    print(f"[download] {symbol} {start}..{end}", flush=True)
-    bars = client.get_stock_bars(req).data.get(symbol, [])
-    cache_dir.mkdir(parents=True, exist_ok=True)
-    tmp = out.with_suffix(".tmp")
+    return client.get_stock_bars(req).data.get(symbol, [])
+
+
+def _bars_to_rows(bars: list) -> list[str]:
+    """Convert Alpaca bar objects to CSV row strings (no header)."""
+    return [
+        f"{b.timestamp.isoformat()},{b.open},{b.high},{b.low},{b.close},{b.volume}"
+        for b in bars
+    ]
+
+
+def _read_partial(partial: Path) -> tuple[list[str], Optional[datetime]]:
+    """Read existing rows and last timestamp from a .partial gzip CSV.
+
+    Returns (rows, last_ts). last_ts is None if the file is empty or unreadable.
+    """
+    rows: list[str] = []
+    last_ts: Optional[datetime] = None
+    try:
+        with gzip.open(partial, "rt") as f:
+            next(f)  # skip header
+            for line in f:
+                line = line.rstrip("\n")
+                if line:
+                    rows.append(line)
+                    last_ts = datetime.fromisoformat(line.split(",")[0])
+    except Exception:
+        pass
+    return rows, last_ts
+
+
+def _write_partial(partial: Path, rows: list[str]) -> None:
+    """Atomically write rows to a .partial gzip CSV (header included)."""
+    tmp = Path(str(partial) + ".tmp")
     with gzip.open(tmp, "wt") as f:
         f.write("ts,open,high,low,close,volume\n")
-        for b in bars:
-            f.write(f"{b.timestamp.isoformat()},{b.open},{b.high},"
-                    f"{b.low},{b.close},{b.volume}\n")
-    os.replace(tmp, out)
-    print(f"[download] {symbol}: {len(bars)} minute bars cached", flush=True)
+        for row in rows:
+            f.write(row + "\n")
+    os.replace(tmp, partial)
+
+
+def _fetch_chunk_with_retry(
+    symbol: str,
+    chunk_start: datetime,
+    chunk_end: datetime,
+    max_retries: int,
+    backoff_base: float,
+    fetcher: Callable,
+) -> list[str]:
+    """Fetch one monthly chunk with exponential back-off retry.
+
+    Returns list of CSV row strings (no header). Raises on exhausted retries.
+    """
+    for attempt in range(max_retries):
+        try:
+            bars = fetcher(symbol, chunk_start, chunk_end)
+            return _bars_to_rows(bars)
+        except Exception as exc:
+            if attempt == max_retries - 1:
+                raise
+            delay = backoff_base ** attempt
+            print(
+                f"[retry] {symbol} chunk {chunk_start.date()} "
+                f"attempt {attempt + 1}/{max_retries} failed ({exc}); "
+                f"retrying in {delay:.1f}s",
+                flush=True,
+            )
+            time.sleep(delay)
+    return []  # unreachable
+
+
+def download_symbol(
+    symbol: str,
+    start: str,
+    end: str,
+    cache_dir: Path,
+    *,
+    max_retries: int = 3,
+    backoff_base: float = 2.0,
+    _fetcher: Optional[Callable] = None,
+) -> Path:
+    """Download 1-min IEX bars to a gzip CSV cache; resume if interrupted.
+
+    Downloads in monthly chunks so a crash can be resumed from the last
+    complete chunk. Pass `_fetcher` to override the Alpaca API call (tests).
+    """
+    out = cache_dir / f"{symbol}_{start}_{end}_1min.csv.gz"
+    if out.exists():
+        return out
+
+    fetcher = _fetcher if _fetcher is not None else _alpaca_fetch
+    partial = Path(str(out) + ".partial")  # avoids pathlib's single-suffix replacement
+
+    rows, last_ts = _read_partial(partial) if partial.exists() else ([], None)
+    resume_msg = f" (resuming from {last_ts.date()})" if last_ts else ""
+    print(f"[download] {symbol} {start}..{end}{resume_msg}", flush=True)
+
+    cache_dir.mkdir(parents=True, exist_ok=True)
+
+    for chunk_start, chunk_end in _month_ranges(start, end):
+        # Skip chunks already fully covered by the partial file
+        if last_ts is not None:
+            if chunk_end <= last_ts:
+                continue
+            # Partially covered: advance chunk_start past last seen bar
+            if chunk_start <= last_ts:
+                chunk_start = last_ts + timedelta(minutes=1)
+
+        new_rows = _fetch_chunk_with_retry(
+            symbol, chunk_start, chunk_end, max_retries, backoff_base, fetcher
+        )
+        rows.extend(new_rows)
+        if new_rows:
+            last_ts = datetime.fromisoformat(new_rows[-1].split(",")[0])
+        _write_partial(partial, rows)  # save progress after each chunk
+
+    os.replace(partial, out)
+    print(f"[download] {symbol}: {len(rows)} minute bars cached", flush=True)
     return out
 
 
@@ -164,6 +294,10 @@ def main() -> None:
     ap.add_argument("--symbols", nargs="*", default=UNIVERSE)
     ap.add_argument("--shard", type=int, default=0)
     ap.add_argument("--shards", type=int, default=1)
+    ap.add_argument("--max-retries", type=int, default=3,
+                    help="Alpaca API retry attempts per chunk (default: 3)")
+    ap.add_argument("--backoff-base", type=float, default=2.0,
+                    help="Exponential back-off base in seconds (default: 2.0)")
     args = ap.parse_args()
 
     full_grid = default_candidate_grid()
@@ -176,7 +310,9 @@ def main() -> None:
     cache = Path(args.cache_dir)
     trades = []
     for sym in args.symbols:
-        path = download_symbol(sym, args.start, args.end, cache)
+        path = download_symbol(sym, args.start, args.end, cache,
+                               max_retries=args.max_retries,
+                               backoff_base=args.backoff_base)
         rows = load_minute_bars(path)
         bars = consolidate_5min(rows)
         st = run_symbol(sym, bars, grid)
