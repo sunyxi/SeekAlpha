@@ -9,8 +9,9 @@ description = "Opening Range Breakout research and backtesting tool"
 requires-python = ">=3.12"
 
 [project.optional-dependencies]
-data = ["alpaca-py"]
-test = ["pytest"]
+data     = ["alpaca-py"]
+features = ["numpy>=1.24"]
+test     = ["pytest", "numpy>=1.24"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
