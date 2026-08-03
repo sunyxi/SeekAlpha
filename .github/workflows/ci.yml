@@ -21,5 +21,8 @@ jobs:
       - name: Install package with test dependencies
         run: pip install -e ".[test]"
 
+      - name: Check AGENT.md exists
+        run: test -f AGENT.md || (echo "AGENT.md missing — required by ML discipline contract" && exit 1)
+
       - name: Run tests
         run: python -m pytest tests/ -v
