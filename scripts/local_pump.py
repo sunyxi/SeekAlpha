@@ -46,6 +46,7 @@ from zoneinfo import ZoneInfo
 
 from orb.core import Bar, SymbolEngine, default_candidate_grid, grid_spec_hash, SCHEMA_VERSION
 from orb.calendar import session_end as _calendar_session_end
+from orb.cache import validate_cache
 
 NY = ZoneInfo("America/New_York")
 RTH_START_TIME = datetime.min.time().replace(hour=9, minute=30)
@@ -273,6 +274,41 @@ def _mk_bar(key, o, h, l, c, v) -> Bar:
     return Bar(end=end, open=o, high=h, low=l, close=c, volume=v)
 
 
+# --------------------------------------------------------------- validation
+
+def _ensure_valid_cache(
+    symbol: str,
+    path: Path,
+    start: str,
+    end: str,
+    max_retries: int,
+    backoff_base: float,
+    _fetcher=None,
+) -> Path:
+    """Validate cached file; delete and re-download once if corrupt."""
+    result = validate_cache(path, start, end)
+    if result.ok:
+        print(f"[validate] {symbol}: {result.row_count:,} rows OK", flush=True)
+        return path
+    print(
+        f"[validate] {symbol}: corrupt cache ({result.error}); "
+        "deleting and re-downloading",
+        flush=True,
+    )
+    path.unlink(missing_ok=True)
+    new_path = download_symbol(
+        symbol, start, end, path.parent,
+        max_retries=max_retries, backoff_base=backoff_base, _fetcher=_fetcher,
+    )
+    result2 = validate_cache(new_path, start, end)
+    if not result2.ok:
+        sys.exit(
+            f"[validate] {symbol}: cache still invalid after re-download: "
+            f"{result2.error}"
+        )
+    return new_path
+
+
 # --------------------------------------------------------------------- main
 
 def run_symbol(symbol: str, bars, grid) -> list:
@@ -315,6 +351,8 @@ def main() -> None:
         path = download_symbol(sym, args.start, args.end, cache,
                                max_retries=args.max_retries,
                                backoff_base=args.backoff_base)
+        path = _ensure_valid_cache(sym, path, args.start, args.end,
+                                   args.max_retries, args.backoff_base)
         rows = load_minute_bars(path)
         bars = consolidate_5min(rows)
         st = run_symbol(sym, bars, grid)
