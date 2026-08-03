@@ -1,9 +1,18 @@
 # ADR-004 — LightGBM as the meta-labeling classifier
 
-**Status:** Accepted  
-**Date:** 2026-08-03  
-**Deciders:** project maintainers  
+**Status:** Accepted — premise partially revised (see note below)
+**Date:** 2026-08-03
+**Deciders:** project maintainers
 **Related:** [ADR-003](ADR-003-numpy-feature-layer.md), [ADR-005](ADR-005-optuna-bayes-search.md)
+
+> **Evidence correction (2026-08-03):** The Context below states "six FDR-surviving Alpha-101
+> factors as features." A subsequent HAC (Newey-West) re-analysis of the IC evaluation
+> ([reports/factor-ic-nw-20260803.md](../reports/factor-ic-nw-20260803.md)) shows that only
+> 1 factor (alpha042, 20d) survives FDR when autocorrelation from overlapping 20-day returns
+> is properly accounted for. The original 6-factor count was inflated by naive OLS t-statistics.
+> The M4 No-Go decision is unchanged; the model showed no predictive power regardless of
+> feature count (cv_log_loss ≈ ln(2) across all folds). The `factor_list.json` feature pool
+> remains frozen at its committed value.
 
 ---
 

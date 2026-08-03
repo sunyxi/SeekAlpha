@@ -2,14 +2,17 @@
 
 Implements Spearman rank IC against multi-horizon forward returns, IC summary
 statistics (mean, std, IR, t-stat, two-sided p-value via normal approximation),
+Newey-West HAC standard errors, non-overlapping subsample t-statistics,
 and Benjamini-Hochberg FDR correction — all without scipy.
 
 Public API
 ----------
-fwd_return(close, h)             -> ndarray (T, N)  forward return at horizon h
-rank_ic_series(factor, fwd_ret)  -> ndarray (T,)    Spearman IC per row
-ic_summary(ic)                   -> dict             mean, std, IR, t_stat, p_value
-fdr_correct(p_values, q=0.05)    -> (rejected, bh_p_adjusted)
+fwd_return(close, h)               -> ndarray (T, N)  forward return at horizon h
+rank_ic_series(factor, fwd_ret)    -> ndarray (T,)    Spearman IC per row
+ic_summary(ic)                     -> dict             mean, std, IR, t_stat, p_value
+ic_summary_hac(ic, lag)            -> dict             OLS stats + HAC t / p
+ic_summary_nonoverlap(ic, h)       -> dict             OLS stats on every-h subsample
+fdr_correct(p_values, q=0.05)      -> (rejected, bh_p_adjusted)
 """
 
 from __future__ import annotations
@@ -136,6 +139,89 @@ def ic_summary(ic: np.ndarray) -> dict:
         p_value=float(p_value),
         n_obs=n,
     )
+
+
+# ---------------------------------------------------------------------------
+# HAC (Newey-West) IC summary
+
+def ic_summary_hac(ic: np.ndarray, lag: int) -> dict:
+    """IC summary with Newey-West (Bartlett-kernel) HAC standard error.
+
+    Parameters
+    ----------
+    ic  : ndarray (T,) — IC time series; NaN values are excluded.
+    lag : int          — Bartlett kernel bandwidth (= H - 1 for horizon H days).
+                         lag=0 → HAC t equals OLS t exactly (no autocorrelation
+                         correction applied).
+
+    Returns
+    -------
+    dict with all keys from ic_summary plus:
+      hac_t_stat  — HAC-corrected t-statistic
+      hac_p_value — two-sided p-value from hac_t_stat (normal approximation)
+
+    Notes
+    -----
+    Autocovariances use ddof=1 so that lag=0 gives HAC t == OLS t exactly:
+        γ(k) = (1/(n-1)) Σ_{t=k}^{n-1} u_t · u_{t-k},  u_t = ic_t − mean
+        S_hat = γ(0) + 2 Σ_{k=1}^{lag} (1 − k/(lag+1)) γ(k)
+        t_HAC = mean · √n / √S_hat
+    """
+    ic = np.asarray(ic, dtype=float)
+    finite = ic[np.isfinite(ic)]
+    n = len(finite)
+
+    base = ic_summary(ic)
+
+    if n < 2:
+        return {**base, "hac_t_stat": float("nan"), "hac_p_value": float("nan")}
+
+    mean = float(finite.mean())
+    u = finite - mean
+
+    def _autocov(k: int) -> float:
+        if k == 0:
+            return float(np.dot(u, u)) / (n - 1)
+        if k >= n:
+            return 0.0
+        return float(np.dot(u[k:], u[:-k])) / (n - 1)
+
+    S = _autocov(0)
+    for k in range(1, lag + 1):
+        w = 1.0 - k / (lag + 1)
+        S += 2.0 * w * _autocov(k)
+
+    if S <= 0:
+        hac_t = float("nan")
+        hac_p = float("nan")
+    else:
+        hac_t = mean * math.sqrt(n) / math.sqrt(S)
+        hac_p = math.erfc(abs(hac_t) / math.sqrt(2))
+
+    return {**base, "hac_t_stat": float(hac_t), "hac_p_value": float(hac_p)}
+
+
+# ---------------------------------------------------------------------------
+# Non-overlapping subsample IC summary
+
+def ic_summary_nonoverlap(ic: np.ndarray, h: int) -> dict:
+    """IC summary on a non-overlapping subsample (every h-th finite observation).
+
+    Parameters
+    ----------
+    ic : ndarray (T,) — IC time series; NaN values are excluded first.
+    h  : int          — subsample stride (= horizon H in trading days).
+                        h=1 → full series → identical to ic_summary(ic).
+
+    Returns
+    -------
+    dict with the same keys as ic_summary, computed on the subsampled series.
+    """
+    if h < 1:
+        raise ValueError(f"h must be >= 1, got {h}")
+    ic = np.asarray(ic, dtype=float)
+    finite = ic[np.isfinite(ic)]
+    return ic_summary(finite[::h])
 
 
 # ---------------------------------------------------------------------------

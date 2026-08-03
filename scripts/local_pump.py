@@ -35,6 +35,7 @@ from __future__ import annotations
 
 import argparse
 import gzip
+import hashlib
 import json
 import os
 import sys
@@ -65,6 +66,16 @@ UNIVERSE = [
     "XOM", "CVX", "UNH", "JNJ", "LLY",
     "WMT", "COST", "HD", "CAT", "BA",
 ]
+
+
+# ----------------------------------------------------------------- utilities
+
+def _file_sha256(path: Path) -> str:
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(65536), b""):
+            h.update(chunk)
+    return h.hexdigest()
 
 
 # --------------------------------------------------------------- downloading
@@ -353,12 +364,18 @@ def main() -> None:
     cache = Path(args.cache_dir)
     trades = []
     quality_results = []
+    cache_manifest: list[dict] = []
     for sym in args.symbols:
         path = download_symbol(sym, args.start, args.end, cache,
                                max_retries=args.max_retries,
                                backoff_base=args.backoff_base)
         path = _ensure_valid_cache(sym, path, args.start, args.end,
                                    args.max_retries, args.backoff_base)
+        cache_manifest.append({
+            "symbol": sym,
+            "path":   str(path),
+            "sha256": _file_sha256(path),
+        })
         rows = load_minute_bars(path)
         q = compute_quality(sym, rows, args.start, args.end,
                             _is_trading_day, _calendar_session_end)
@@ -396,6 +413,13 @@ def main() -> None:
         "trade_count": len(trades),
     }
     (out / "meta.json").write_text(json.dumps(meta, indent=2))
+    manifest = {
+        "generated_at": datetime.now(tz=ZoneInfo("UTC")).isoformat(),
+        "start": args.start,
+        "end":   args.end,
+        "files": cache_manifest,
+    }
+    (out / "cache_manifest.json").write_text(json.dumps(manifest, indent=2))
     CHUNK = 5000
     for i in range(0, max(len(trades), 1), CHUNK):
         (out / f"trades_{i // CHUNK:04d}.json").write_text(

@@ -92,6 +92,11 @@ See ISSUE-002 for detailed acceptance criteria.
 
 ## M4 — ML Optimization Layer
 
+Status: DoD achieved — decision No-Go
+
+Reports: `reports/orb045-ml.json`, `reports/orb045-ml-bayes.json`,
+`reports/orb045-comparison.json`, `reports/orb045-ml-summary.md`
+
 **Goal**: Determine whether a train-window-only ML overlay meaningfully improves
 the ORB strategy's risk-adjusted performance on the outer test, and whether
 Bayesian hyperparameter search outperforms the fixed grid — using the strict
@@ -120,9 +125,20 @@ tests; search space + seed committed before the outer-test run; `AGENT.md`
 disciplines provably followed (no outer-test data seen during training).
 ADR-004 and ADR-005 committed before code merged.
 
+**Evidence summary**: All three runs (baseline / meta-label / meta-label+Bayes)
+failed the final gates at baseline cost. Meta-label CV log-loss values (0.681–0.700)
+were at or above the no-information baseline ln(2) = 0.693, indicating no
+predictive power on inner validation. Paired comparison (n = 5 folds) found no
+statistically significant improvement; the test is underpowered. See
+`reports/orb045-ml-summary.md` for full details.
+
 ---
 
 ## M5 — Continuous Research Loop
+
+Status: incomplete — drift report produced but DoD not met (see below)
+
+Report: `reports/orb045-drift.json`
 
 **Goal**: Establish a repeatable monthly update cycle so new market data can
 be incorporated into a rolling walk-forward assessment without compromising
@@ -143,3 +159,15 @@ cron / scheduling documentation.
 cache append through to a published drift report, with no manual steps;
 a test using synthetic new-month data verifies the pipeline; documentation
 explains the cadence and operator checklist.
+
+**Current state**: `reports/orb045-drift.json` was produced by `drift_monitor.py`
+against the baseline WF report. However, `reference_folds = 0` and
+`verdict = "insufficient_data"`: only 5 folds contain `test_metrics`, all of which
+fall within the "recent" window (last 3 selected folds). There are fewer than 3
+folds remaining for the reference window (drift_monitor.py requires at least
+`_MIN_REF_FOLDS = 3` reference folds). No drift metrics can be computed.
+
+The pipeline code (incremental download, rolling WF step, drift report) is
+implemented and tested, but the DoD requires a published drift report with
+usable metrics. That requires more selected folds — either a longer live-forward
+period or a regime in which more folds pass selection gates. DoD not yet met.

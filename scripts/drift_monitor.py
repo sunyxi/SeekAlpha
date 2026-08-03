@@ -17,6 +17,11 @@ Algorithm
 5. Overall verdict: worst single-metric verdict that represents a degradation
    (negative z); improvements are not flagged as drift.
 
+When comparing two reports (--reference-report), the input_meta fields
+(grid_spec_hash, universe, start, end, resolution, normalization, data_source,
+trade_count) must match.  Pass --allow-input-mismatch to override (mismatch
+is then recorded in the output).
+
 Output is create-only, atomic (os.link swap), consistent with wf_select.py.
 Stdlib-only — no numpy, scipy, or other optional dependencies.
 
@@ -38,6 +43,18 @@ import statistics
 import sys
 from datetime import datetime
 
+# Fields that must match between two report input_metas for a valid comparison.
+_INPUT_META_REQUIRED_MATCH: list[str] = [
+    "grid_spec_hash",
+    "universe",
+    "start",
+    "end",
+    "resolution",
+    "normalization",
+    "data_source",
+    "trade_count",
+]
+
 # Metrics to track (all are "higher is better" for performance assessment)
 _TRACKED_METRICS: list[str] = [
     "sharpe",
@@ -52,6 +69,36 @@ _SIGNIFICANT_Z:  float = 2.0
 
 # Minimum reference folds needed for a valid z-score
 _MIN_REF_FOLDS: int = 3
+
+
+# ---------------------------------------------------------------------------
+# Input-meta consistency check (importable by tests)
+
+def _extract_input_meta(report: dict) -> dict:
+    """Return a flat dict of input_meta fields from the first shard."""
+    meta = report.get("input_meta")
+    if isinstance(meta, list):
+        return meta[0] if meta else {}
+    if isinstance(meta, dict):
+        return meta
+    return {}
+
+
+def check_input_meta(report_a: dict, report_b: dict) -> dict[str, dict]:
+    """Compare input_meta fields between two wf_select reports.
+
+    Returns a dict of {field: {"report_a": v1, "report_b": v2}} for fields
+    that differ.  Empty dict means all checked fields match.
+    """
+    meta_a = _extract_input_meta(report_a)
+    meta_b = _extract_input_meta(report_b)
+    mismatches: dict[str, dict] = {}
+    for field in _INPUT_META_REQUIRED_MATCH:
+        va = meta_a.get(field)
+        vb = meta_b.get(field)
+        if va != vb:
+            mismatches[field] = {"report_a": va, "report_b": vb}
+    return mismatches
 
 
 # ---------------------------------------------------------------------------
@@ -178,15 +225,43 @@ def write_report(
     output_path: str,
     *,
     recent_folds: int = 3,
+    reference_report: dict | None = None,
+    allow_input_mismatch: bool = False,
 ) -> None:
-    """Run monitor() and write result to output_path (create-only, atomic)."""
+    """Run monitor() and write result to output_path (create-only, atomic).
+
+    Parameters
+    ----------
+    reference_report : dict or None
+        When provided, input_meta fields are compared between wf_report and
+        reference_report.  A mismatch causes SystemExit unless
+        allow_input_mismatch=True, in which case it is recorded in the output.
+    allow_input_mismatch : bool
+        Allow mismatched input_meta fields (recorded in output).
+    """
     if os.path.exists(output_path):
         sys.exit(f"output path exists; create-only policy refuses overwrite: {output_path}")
+
+    input_mismatch: dict | None = None
+    if reference_report is not None:
+        mismatches = check_input_meta(reference_report, wf_report)
+        if mismatches and not allow_input_mismatch:
+            diff_fields = ", ".join(mismatches.keys())
+            sys.exit(
+                f"input_meta mismatch between reference and new report — fields differ: "
+                f"{diff_fields}\n"
+                f"Details: {mismatches}\n"
+                "Pass --allow-input-mismatch to proceed (mismatch will be recorded in output)."
+            )
+        if mismatches:
+            input_mismatch = mismatches
 
     result = monitor(wf_report, recent_folds=recent_folds)
     result["generated_at"]  = datetime.now().astimezone().isoformat()
     result["source_report"] = wf_report.get("_source_path", "")
     result["recent_folds_requested"] = recent_folds
+    if input_mismatch is not None:
+        result["input_mismatch"] = input_mismatch
 
     tmp = output_path + ".tmp"
     os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
@@ -223,10 +298,14 @@ def main() -> None:
                     help="Output path for the drift report (create-only)")
     ap.add_argument("--recent-folds", type=int, default=3,
                     help="Number of trailing selected folds treated as 'recent' (default: 3)")
+    ap.add_argument("--allow-input-mismatch", action="store_true", default=False,
+                    help="Allow mismatched input_meta fields when comparing reports "
+                         "(mismatch is recorded in the output).")
     args = ap.parse_args()
 
     wf_report = _load(args.report)
-    write_report(wf_report, args.output, recent_folds=args.recent_folds)
+    write_report(wf_report, args.output, recent_folds=args.recent_folds,
+                 allow_input_mismatch=args.allow_input_mismatch)
 
     with open(args.output) as f:
         out = json.load(f)

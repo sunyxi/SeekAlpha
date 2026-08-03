@@ -16,6 +16,8 @@ from orb.features.ic_eval import (
     fdr_correct,
     fwd_return,
     ic_summary,
+    ic_summary_hac,
+    ic_summary_nonoverlap,
     rank_ic_series,
 )
 
@@ -277,6 +279,122 @@ class TestFdrCorrect(unittest.TestCase):
         self.assertEqual(rejected.shape, p.shape)
         self.assertEqual(bh_p.shape, p.shape)
         self.assertEqual(rejected.dtype, bool)
+
+
+# ---------------------------------------------------------------------------
+# ic_summary_hac — Newey-West HAC standard error
+# ---------------------------------------------------------------------------
+
+class TestHacIcSummary(unittest.TestCase):
+
+    def test_known_answer_hac_tstat(self):
+        """Hand-computed HAC t for a small IC series with Bartlett lag=1."""
+        ic = np.array([0.1, -0.2, 0.15, 0.3, -0.05])
+        n = len(ic)
+        mean = float(ic.mean())        # 0.06
+        u = ic - mean
+        g0 = float(np.dot(u, u)) / (n - 1)          # 0.03675
+        g1 = float(np.dot(u[1:], u[:-1])) / (n - 1) # −0.00965
+        S_hat = g0 + 2.0 * 0.5 * g1                 # 0.0271  (w(1)=0.5)
+        t_expected = mean * math.sqrt(n) / math.sqrt(S_hat)  # ≈ 0.8150
+
+        s = ic_summary_hac(ic, lag=1)
+        self.assertAlmostEqual(s["hac_t_stat"], t_expected, places=8)
+
+    def test_degenerate_lag0_equals_ols(self):
+        """When lag=0, HAC t must be numerically identical to OLS t."""
+        rng = np.random.RandomState(42)
+        ic = rng.randn(100)
+        s_ols = ic_summary(ic)
+        s_hac = ic_summary_hac(ic, lag=0)
+        self.assertAlmostEqual(s_hac["hac_t_stat"], s_ols["t_stat"], places=10)
+
+    def test_iid_hac_close_to_ols(self):
+        """For large i.i.d. IC series, HAC t ≈ OLS t (within 5 % relative)."""
+        rng = np.random.RandomState(7)
+        ic = rng.randn(600)
+        s_ols = ic_summary(ic)
+        s_hac = ic_summary_hac(ic, lag=4)  # lag = H-1 for H=5
+        if math.isfinite(s_ols["t_stat"]) and math.isfinite(s_hac["hac_t_stat"]):
+            ratio = abs(s_hac["hac_t_stat"]) / abs(s_ols["t_stat"])
+            self.assertAlmostEqual(ratio, 1.0, delta=0.05)
+
+    def test_overlapping_hac_substantially_smaller_than_ols(self):
+        """IC from overlapping-window returns: |HAC t| < |OLS t| by a clear margin."""
+        rng = np.random.RandomState(13)
+        H = 20
+        # Simulate IC series with strong positive autocorrelation:
+        # running mean of WN over H bars mimics IC from 20d overlapping returns
+        n_raw = 3000
+        raw = rng.randn(n_raw)
+        ic = np.convolve(raw, np.ones(H) / H, mode="valid") + 0.05
+
+        s_ols = ic_summary(ic)
+        s_hac = ic_summary_hac(ic, lag=H - 1)
+        if math.isfinite(s_ols["t_stat"]) and math.isfinite(s_hac["hac_t_stat"]):
+            # OLS over-counts due to autocorrelation; HAC must be at least 30% smaller
+            self.assertGreater(abs(s_ols["t_stat"]), abs(s_hac["hac_t_stat"]) * 1.3)
+
+    def test_determinism(self):
+        """Same input → identical HAC output on two independent calls."""
+        ic = np.array([0.05, -0.1, 0.08, 0.12, -0.03, 0.07, 0.02, -0.05,
+                       0.11, 0.06, -0.07, 0.09])
+        s1 = ic_summary_hac(ic, lag=2)
+        s2 = ic_summary_hac(ic, lag=2)
+        for key in s1:
+            v1, v2 = s1[key], s2[key]
+            if isinstance(v1, float) and math.isfinite(v1):
+                self.assertEqual(v1, v2, msg=f"non-deterministic key: {key}")
+            else:
+                self.assertEqual(v1, v2)
+
+    def test_hac_returns_required_keys(self):
+        ic = np.linspace(-0.1, 0.1, 50)
+        s = ic_summary_hac(ic, lag=3)
+        for key in ("mean_ic", "std_ic", "t_stat", "p_value", "n_obs",
+                    "hac_t_stat", "hac_p_value"):
+            self.assertIn(key, s)
+
+    def test_empty_ic_returns_nan(self):
+        ic = np.array([np.nan, np.nan])
+        s = ic_summary_hac(ic, lag=1)
+        self.assertEqual(s["n_obs"], 0)
+        self.assertTrue(math.isnan(s["hac_t_stat"]))
+
+
+# ---------------------------------------------------------------------------
+# ic_summary_nonoverlap — non-overlapping subsample t-test
+# ---------------------------------------------------------------------------
+
+class TestNonOverlapIcSummary(unittest.TestCase):
+
+    def test_h1_equals_full_ols(self):
+        """For h=1 the subsampled t-stat matches ic_summary on the full series."""
+        rng = np.random.RandomState(5)
+        ic = rng.randn(100)
+        s_ols = ic_summary(ic)
+        s_no  = ic_summary_nonoverlap(ic, h=1)
+        self.assertAlmostEqual(s_no["t_stat"], s_ols["t_stat"], places=10)
+
+    def test_h_greater_than_1_reduces_n(self):
+        """Subsampling by h reduces n_obs to ceil(T / h)."""
+        ic = np.ones(100) * 0.05
+        h = 5
+        s = ic_summary_nonoverlap(ic, h=h)
+        expected_n = len(np.ones(100)[::h])  # 20
+        self.assertEqual(s["n_obs"], expected_n)
+
+    def test_returns_required_keys(self):
+        ic = np.linspace(-0.1, 0.1, 60)
+        s = ic_summary_nonoverlap(ic, h=10)
+        for key in ("mean_ic", "std_ic", "t_stat", "p_value", "n_obs"):
+            self.assertIn(key, s)
+
+    def test_nan_excluded_before_subsample(self):
+        """NaN values in the input are excluded before subsampling."""
+        ic = np.array([0.1, np.nan, 0.2, np.nan, 0.3, np.nan, 0.4, np.nan])
+        s = ic_summary_nonoverlap(ic, h=1)
+        self.assertEqual(s["n_obs"], 4)  # 4 finite values
 
 
 if __name__ == "__main__":
