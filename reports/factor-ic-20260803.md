@@ -1,0 +1,43 @@
+# Factor IC Evaluation — 2026-08-03
+
+## Run parameters
+
+| Parameter | Value |
+|-----------|-------|
+| Panel date range | 2021-01-04 → 2026-06-30 |
+| Symbols | 31 (full ORB universe) |
+| Trading days | 1,378 |
+| Factors evaluated | 42 (Alpha-101) |
+| Horizons | 1d, 5d, 20d |
+| FDR method | Benjamini-Hochberg q = 0.05 |
+| Total hypotheses | 126 (42 × 3) |
+
+## Commands
+
+```bash
+python3 scripts/run_ic_eval.py \
+    --cache-dir data \
+    --start 2021-01-04 \
+    --end 2026-06-30 \
+    --report-output reports/factor-ic-20260803.json \
+    --factor-list src/orb/features/factor_list.json
+```
+
+## Result: 6 / 42 factors survive FDR
+
+| Factor | 1d IC | 1d IR | 5d IC | 5d IR | 20d IC | 20d IR | Passes FDR |
+|--------|-------|-------|-------|-------|--------|--------|-----------|
+| alpha003 | -0.0044 | -0.023 | +0.0023 | +0.012 | **+0.0304** | **+0.155** | 20d * |
+| alpha024 | +0.0113 | +0.046 | +0.0176 | +0.072 | **+0.0207** | **+0.089** | 20d * |
+| alpha032 | +0.0161 | +0.062 | **+0.0245** | **+0.102** | **+0.0372** | **+0.168** | 5d, 20d * |
+| alpha035 | -0.0047 | -0.019 | +0.0030 | +0.012 | **+0.0210** | **+0.087** | 20d * |
+| alpha042 | +0.0068 | +0.031 | **+0.0279** | **+0.127** | **+0.0475** | **+0.227** | 5d, 20d * |
+| alpha050 | -0.0013 | -0.007 | +0.0048 | +0.026 | **+0.0207** | **+0.113** | 20d * |
+
+## Key observations
+
+- 20-day horizon dominates: all 6 survivors show IC at 20d; only alpha032 and alpha042 also pass at 5d.
+- IC magnitudes are small (0.02–0.05), typical of daily cross-sectional alphas over a large universe.
+- alpha042 (`rank(vwap-close)/rank(vwap+close)`) is the strongest with 20d IC=+0.048 and IR=+0.227.
+- Report JSON: `reports/factor-ic-20260803.json` (gitignored — large file)
+- Factor list: `src/orb/features/factor_list.json` (frozen, committed)
