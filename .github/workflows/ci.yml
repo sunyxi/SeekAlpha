@@ -27,6 +27,19 @@ jobs:
       - name: Run tests
         run: python -m pytest tests/ -v
 
+      - name: Verify factor_list.json is frozen
+        run: |
+          python3 -c "
+          import hashlib, sys
+          FROZEN = '41788b5b97629965a52799936f691e1bde391801d6df995712cd301df59d80ec'
+          with open('src/orb/features/factor_list.json', 'rb') as f:
+              actual = hashlib.sha256(f.read()).hexdigest()
+          if actual != FROZEN:
+              print(f'factor_list.json modified! frozen={FROZEN} actual={actual}', file=sys.stderr)
+              sys.exit(1)
+          print(f'factor_list.json frozen hash verified: {actual}')
+          "
+
       - name: Validate committed reports
         run: |
           python3 -c "

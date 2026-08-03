@@ -43,6 +43,11 @@ _SCHEMA_VERSION = 1
 _HORIZONS = [1, 5, 20]
 _FDR_Q = 0.05
 
+# Factor development period boundary (frozen — must match factor_list.json dev_cutoff).
+# IC evaluation is prohibited on data beyond this date to prevent look-ahead into
+# any future hold-out or live period.
+_DEV_CUTOFF = date(2026, 6, 30)
+
 
 def _atomic_create_only(path: Path, data: dict) -> None:
     """Write JSON atomically; exit 1 if the target already exists."""
@@ -77,6 +82,12 @@ def main() -> None:
     factor_list_path = Path(args.factor_list)
     start = date.fromisoformat(args.start)
     end   = date.fromisoformat(args.end)
+
+    if end > _DEV_CUTOFF:
+        sys.exit(
+            f"end={end} exceeds the factor development cutoff {_DEV_CUTOFF}. "
+            "Re-evaluation with data beyond the declared boundary is prohibited."
+        )
 
     print(f"[ic_eval] building daily panel from {cache_dir} ({start} → {end})")
     panel = build_panel(cache_dir, start=start, end=end)
@@ -169,6 +180,7 @@ def main() -> None:
         {
             "schema_version": _SCHEMA_VERSION,
             "generated_at": datetime.now(timezone.utc).isoformat(),
+            "dev_cutoff": str(_DEV_CUTOFF),
             "fdr_q": _FDR_Q,
             "horizons_days": _HORIZONS,
             "factors": surviving,

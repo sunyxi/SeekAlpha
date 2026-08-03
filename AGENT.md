@@ -71,7 +71,7 @@ justification, a new frozen value, and invalidation of all prior results.
 | Final decision gates | `GATE_MIN_TRADES=100`, `GATE_MIN_SHARPE=0.5`, `GATE_MIN_PF=1.10`, mean net bps > 0 |
 | RVOL definition | median of last 20 trading days' cumulative volume at the same intraday minute mark; minimum 10 days of history required |
 | Cost scenarios | zero (0 bps), baseline (2.5 bps/side), double (5.0 bps/side) |
-| Research time boundary | Simulation date range declared at run time; outer test must not extend beyond it |
+| Research time boundary | **2026-06-30** — factor development cutoff; IC evaluation and factor selection used data up to and including this date. Extending beyond this boundary is prohibited. Enforced by `run_ic_eval._DEV_CUTOFF` and the CI hash check on `factor_list.json`. |
 | ML search space (M4) | To be declared in a JSON spec file before M4 outer-test run; hash recorded in report |
 
 ---
