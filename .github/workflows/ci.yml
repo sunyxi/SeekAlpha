@@ -18,8 +18,8 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install package (core only, no optional deps)
-        run: pip install -e .
+      - name: Install package with test dependencies
+        run: pip install -e ".[test]"
 
       - name: Run tests
         run: python -m pytest tests/ -v
