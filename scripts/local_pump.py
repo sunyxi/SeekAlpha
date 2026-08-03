@@ -45,8 +45,9 @@ from typing import Callable, Optional
 from zoneinfo import ZoneInfo
 
 from orb.core import Bar, SymbolEngine, default_candidate_grid, grid_spec_hash, SCHEMA_VERSION
-from orb.calendar import session_end as _calendar_session_end
+from orb.calendar import is_trading_day as _is_trading_day, session_end as _calendar_session_end
 from orb.cache import validate_cache
+from orb.quality import compute_quality, format_quality_report, write_quality_json
 
 NY = ZoneInfo("America/New_York")
 RTH_START_TIME = datetime.min.time().replace(hour=9, minute=30)
@@ -336,6 +337,10 @@ def main() -> None:
                     help="Alpaca API retry attempts per chunk (default: 3)")
     ap.add_argument("--backoff-base", type=float, default=2.0,
                     help="Exponential back-off base in seconds (default: 2.0)")
+    ap.add_argument("--quality-report", default=None, metavar="PATH",
+                    help="Write per-symbol quality stats JSON to PATH")
+    ap.add_argument("--strict-quality", action="store_true",
+                    help="Exit non-zero if any symbol gap rate > 1%%")
     args = ap.parse_args()
 
     full_grid = default_candidate_grid()
@@ -347,6 +352,7 @@ def main() -> None:
 
     cache = Path(args.cache_dir)
     trades = []
+    quality_results = []
     for sym in args.symbols:
         path = download_symbol(sym, args.start, args.end, cache,
                                max_retries=args.max_retries,
@@ -354,11 +360,24 @@ def main() -> None:
         path = _ensure_valid_cache(sym, path, args.start, args.end,
                                    args.max_retries, args.backoff_base)
         rows = load_minute_bars(path)
+        q = compute_quality(sym, rows, args.start, args.end,
+                            _is_trading_day, _calendar_session_end)
+        quality_results.append(q)
         bars = consolidate_5min(rows)
         st = run_symbol(sym, bars, grid)
         trades.extend(st)
         print(f"[run] {sym}: {len(bars)} 5m bars -> {len(st)} trades",
               flush=True)
+
+    print(format_quality_report(quality_results), flush=True)
+    if args.quality_report:
+        write_quality_json(quality_results, args.start, args.end,
+                           Path(args.quality_report))
+        print(f"[quality] report written to {args.quality_report}", flush=True)
+    if args.strict_quality:
+        warned = [q.symbol for q in quality_results if q.has_warning()]
+        if warned:
+            sys.exit(f"[quality] strict mode: gap rate > 1% for: {', '.join(warned)}")
 
     out = Path(args.out_dir) / f"shard{args.shard}of{args.shards}"
     out.mkdir(parents=True, exist_ok=True)
