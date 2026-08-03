@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import argparse
 import glob
+import hashlib
 import json
 import math
 import os
@@ -80,8 +81,23 @@ def metrics(trades: list, trading_days: list, bps: float) -> dict:
     }
 
 
-def load_trades(trades_dir: str) -> tuple[list, list]:
+def _file_sha256(path: str) -> str:
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(65536), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def load_trades(trades_dir: str) -> tuple[list, list, list[dict]]:
+    """Load trade logs from shard directories.
+
+    Returns (metas, trades, file_provenance).
+    file_provenance is a list of {path, sha256, trade_count} dicts for
+    each trades_*.json file — written to the report for reproducibility.
+    """
     metas, trades = [], []
+    file_provenance: list[dict] = []
     shard_dirs = sorted(glob.glob(os.path.join(trades_dir, "shard*")))
     if not shard_dirs:
         shard_dirs = [trades_dir]
@@ -93,7 +109,13 @@ def load_trades(trades_dir: str) -> tuple[list, list]:
         meta = json.load(open(mpath))
         metas.append(meta)
         for f in sorted(glob.glob(os.path.join(sd, "trades_*.json"))):
-            trades.extend(json.load(open(f)))
+            batch = json.load(open(f))
+            file_provenance.append({
+                "path":        f,
+                "sha256":      _file_sha256(f),
+                "trade_count": len(batch),
+            })
+            trades.extend(batch)
     hashes = {m["grid_spec_hash"] for m in metas}
     if len(hashes) != 1:
         sys.exit(f"inconsistent grid_spec_hash across shards: {hashes}")
@@ -109,7 +131,7 @@ def load_trades(trades_dir: str) -> tuple[list, list]:
         if k in seen:
             sys.exit(f"duplicate trade detected: {k}")
         seen.add(k)
-    return metas, trades
+    return metas, trades, file_provenance
 
 
 def main() -> None:
@@ -128,7 +150,7 @@ def main() -> None:
     if os.path.exists(args.report_output):
         sys.exit("report path exists; create-only policy refuses overwrite")
 
-    metas, all_trades = load_trades(args.trades_dir)
+    metas, all_trades, file_provenance = load_trades(args.trades_dir)
 
     trading_days = sorted({t["exit_time"][:10] for t in all_trades})
     by_cand = defaultdict(list)
@@ -215,6 +237,10 @@ def main() -> None:
         "schema_version": 1,
         "generated_at": datetime.now().astimezone().isoformat(),
         "input_meta": metas,
+        "provenance": {
+            "trade_log_files": file_provenance,
+            "total_trade_count": len(all_trades),
+        },
         "fold_definition": {"train_days": TRAIN_DAYS, "test_days": TEST_DAYS,
                             "step_days": STEP_DAYS},
         "selection_gates": {"min_trades": SEL_MIN_TRADES,

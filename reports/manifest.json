@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-08-03T23:00:00+08:00",
+  "reports": [
+    {
+      "filename": "orb045-wf.json",
+      "kind": "wf_select",
+      "decision": "No-Go",
+      "generated_at": "2026-08-03T14:28:46.824585+09:00",
+      "sha256": "564240fc7914aebfed7142d70ed033e6d18c83d2c45ad67f05394db353d84e65"
+    },
+    {
+      "filename": "orb045-ml.json",
+      "kind": "wf_select",
+      "decision": "No-Go",
+      "generated_at": "2026-08-03T22:29:36.138029+09:00",
+      "sha256": "a3368d8f9dfe20c7226e117c9250cd7324193dc30818083279be76ca016f4b5a"
+    },
+    {
+      "filename": "orb045-ml-bayes.json",
+      "kind": "wf_select",
+      "decision": "No-Go",
+      "generated_at": "2026-08-03T22:31:43.059658+09:00",
+      "sha256": "f170c3e28418ab97a6dcfe5eb2cd3e28b16e82c1e2739b2aff5554cd1eb63652"
+    },
+    {
+      "filename": "orb045-comparison.json",
+      "kind": "compare_runs",
+      "decision": "no_significant_improvement",
+      "generated_at": "2026-08-03T22:42:14.980484+09:00",
+      "sha256": "eda55aeba3802d11055bc4b793506b31c70620df855f3fb04b8a423840d22762"
+    },
+    {
+      "filename": "orb045-drift.json",
+      "kind": "drift_monitor",
+      "decision": "insufficient_data",
+      "generated_at": "2026-08-03T22:40:53.958534+09:00",
+      "sha256": "74e0781ce763ae14e4f4b629ff6b4b6bb088bd47e245076e4ac7380c1c5a4b1d"
+    },
+    {
+      "filename": "factor-ic-20260803.json",
+      "kind": "run_ic_eval",
+      "decision": null,
+      "generated_at": "2026-08-03T11:25:46.761740+00:00",
+      "sha256": "b92342b1742083dac603e2fd3c0357772ed45d336d0a0c97e880a712543ac8b0"
+    },
+    {
+      "filename": "factor-ic-nw-20260803.json",
+      "kind": "run_ic_eval",
+      "decision": null,
+      "generated_at": "2026-08-03T14:41:46.255192+00:00",
+      "sha256": "548d1112eef9904694043b5f378e7ff97c01fe7c8000ae1735869fcd2988c38d"
+    }
+  ]
+}

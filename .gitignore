@@ -20,7 +20,9 @@ data/
 runs/
 
 # Reports — JSON/CSV outputs excluded; .md provenance docs are committed
+# manifest.json is the one committed file (index of published reports)
 reports/*.json
+!reports/manifest.json
 reports/*.csv
 reports/*.json.gz
 

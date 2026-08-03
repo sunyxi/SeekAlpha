@@ -11,6 +11,9 @@ Usage
         --ml       reports/orb045-ml.json \\
         --output   reports/orb045-comparison.json
 
+    # Allow mismatched input metadata (recorded in output; use with caution):
+    python3 scripts/compare_runs.py --allow-input-mismatch ...
+
 Output is create-only (refuses to overwrite existing file, atomic via os.link).
 Stdlib-only — no numpy, scipy, or other optional dependencies.
 """
@@ -24,6 +27,18 @@ import os
 import statistics
 import sys
 from datetime import datetime
+
+# Fields that must match between the two reports' input_meta for a valid comparison.
+_INPUT_META_REQUIRED_MATCH: list[str] = [
+    "grid_spec_hash",
+    "universe",
+    "start",
+    "end",
+    "resolution",
+    "normalization",
+    "data_source",
+    "trade_count",
+]
 
 # Metrics extracted per fold for the paired comparison.
 _COMPARED_METRICS: list[str] = [
@@ -40,6 +55,37 @@ _ALPHA: float = 0.05
 
 # ---------------------------------------------------------------------------
 # Core functions (importable by tests)
+
+def _extract_input_meta(report: dict) -> dict:
+    """Return a flat dict of input_meta fields from the first shard."""
+    meta = report.get("input_meta")
+    if isinstance(meta, list):
+        return meta[0] if meta else {}
+    if isinstance(meta, dict):
+        return meta
+    return {}
+
+
+def check_input_meta(
+    baseline_report: dict,
+    ml_report: dict,
+) -> dict[str, dict]:
+    """Compare input_meta fields between two reports.
+
+    Returns a dict mapping field name → {"baseline": v1, "ml": v2}
+    for every field in _INPUT_META_REQUIRED_MATCH that differs between
+    the two reports.  An empty dict means all checked fields match.
+    """
+    base_meta = _extract_input_meta(baseline_report)
+    ml_meta   = _extract_input_meta(ml_report)
+    mismatches: dict[str, dict] = {}
+    for field in _INPUT_META_REQUIRED_MATCH:
+        bv = base_meta.get(field)
+        mv = ml_meta.get(field)
+        if bv != mv:
+            mismatches[field] = {"baseline": bv, "ml": mv}
+    return mismatches
+
 
 def fold_metrics(folds: list[dict]) -> dict[int, dict]:
     """Return {fold_index: test_metrics} for folds where a candidate was selected."""
@@ -90,11 +136,21 @@ def paired_ttest(diffs: list[float]) -> dict:
     }
 
 
-def compare(baseline_report: dict, ml_report: dict) -> dict:
+def compare(
+    baseline_report: dict,
+    ml_report: dict,
+    input_mismatch: dict | None = None,
+) -> dict:
     """Compute per-metric paired comparison between two wf_select reports.
 
     Folds are matched by fold index.  Only folds where both reports selected
     a candidate (test_metrics present) are included.
+
+    Parameters
+    ----------
+    input_mismatch : dict or None
+        If not None, the result of check_input_meta(); recorded in the output
+        under "input_mismatch".  None means the caller has verified inputs match.
 
     Returns a comparison dict suitable for JSON serialisation.
     """
@@ -134,6 +190,9 @@ def compare(baseline_report: dict, ml_report: dict) -> dict:
 
     result["paired_comparison"] = paired
 
+    if input_mismatch is not None:
+        result["input_mismatch"] = input_mismatch
+
     # Overall verdict based on mean_net_bps (primary) + sharpe
     sharpe_better = (
         paired.get("sharpe", {}).get("significant") is True
@@ -158,12 +217,32 @@ def compare(baseline_report: dict, ml_report: dict) -> dict:
     return result
 
 
-def write_report(baseline_report: dict, ml_report: dict, output_path: str) -> None:
-    """Compare and write report JSON to output_path (create-only, atomic)."""
+def write_report(
+    baseline_report: dict,
+    ml_report: dict,
+    output_path: str,
+    *,
+    allow_input_mismatch: bool = False,
+) -> None:
+    """Compare and write report JSON to output_path (create-only, atomic).
+
+    Raises SystemExit with a non-zero code if input_meta fields differ between
+    the two reports, unless allow_input_mismatch=True is passed.  When allowed,
+    the mismatch is recorded in the output under "input_mismatch".
+    """
     if os.path.exists(output_path):
         sys.exit(f"output path exists; create-only policy refuses overwrite: {output_path}")
 
-    cmp = compare(baseline_report, ml_report)
+    mismatches = check_input_meta(baseline_report, ml_report)
+    if mismatches and not allow_input_mismatch:
+        diff_fields = ", ".join(mismatches.keys())
+        sys.exit(
+            f"input_meta mismatch between reports — fields differ: {diff_fields}\n"
+            f"Details: {mismatches}\n"
+            "Pass --allow-input-mismatch to proceed (mismatch will be recorded in output)."
+        )
+
+    cmp = compare(baseline_report, ml_report, input_mismatch=mismatches or None)
     cmp["generated_at"] = datetime.now().astimezone().isoformat()
     cmp["baseline_report"] = baseline_report.get("_source_path", "")
     cmp["ml_report"]       = ml_report.get("_source_path", "")
@@ -203,12 +282,16 @@ def main() -> None:
                     help="Path to ML (meta-label) wf_select report JSON")
     ap.add_argument("--output",   required=True,
                     help="Output path for the comparison report JSON (create-only)")
+    ap.add_argument("--allow-input-mismatch", action="store_true", default=False,
+                    help="Allow mismatched input_meta fields (recorded in output). "
+                         "Use only when the mismatch is understood and accepted.")
     args = ap.parse_args()
 
     baseline_report = _load(args.baseline)
     ml_report       = _load(args.ml)
 
-    write_report(baseline_report, ml_report, args.output)
+    write_report(baseline_report, ml_report, args.output,
+                 allow_input_mismatch=args.allow_input_mismatch)
     print(f"verdict: {json.load(open(args.output))['verdict']}")
     print(f"report  -> {args.output}")
 

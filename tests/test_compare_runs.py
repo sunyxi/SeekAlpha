@@ -50,10 +50,27 @@ def _fold(k: int, selected: bool = True, sharpe: float = 1.0,
     return rep
 
 
-def _report(folds: list[dict], meta_label: bool = False) -> dict:
+_DEFAULT_META = {
+    "grid_spec_hash": "68f21a729b407c63",
+    "universe": ["SPY", "QQQ"],
+    "start": "2021-01-04",
+    "end": "2026-06-30",
+    "resolution": "1min(iex)->5minute",
+    "normalization": "adjusted(all)",
+    "data_source": "alpaca-iex-free",
+    "trade_count": 959233,
+}
+
+
+def _report(folds: list[dict], meta_label: bool = False,
+            input_meta: dict | None = None) -> dict:
+    meta = dict(_DEFAULT_META)
+    if input_meta:
+        meta.update(input_meta)
     return {
         "schema_version": 1,
         "generated_at": "2026-08-03T00:00:00+00:00",
+        "input_meta": [meta],
         "folds": folds,
         "outer_test_metrics_by_cost": {
             "baseline": _test_metrics()
@@ -224,6 +241,90 @@ class TestCompare(_ImportMixin, unittest.TestCase):
     def test_schema_version_in_output(self):
         result = self._run([_fold(0)], [_fold(0)])
         self.assertEqual(result["schema_version"], 1)
+
+
+# ---------------------------------------------------------------------------
+# TestCreateOnly
+# ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# TestInputMetaCheck
+# ---------------------------------------------------------------------------
+
+class TestInputMetaCheck(_ImportMixin, unittest.TestCase):
+
+    def setUp(self):
+        self.cr = self._import()
+
+    def test_matching_meta_returns_empty_dict(self):
+        base = _report([_fold(0)])
+        ml   = _report([_fold(0)], meta_label=True)
+        mismatches = self.cr.check_input_meta(base, ml)
+        self.assertEqual(mismatches, {})
+
+    def test_trade_count_mismatch_detected(self):
+        base = _report([_fold(0)], input_meta={"trade_count": 959233})
+        ml   = _report([_fold(0)], input_meta={"trade_count": 959221}, meta_label=True)
+        mismatches = self.cr.check_input_meta(base, ml)
+        self.assertIn("trade_count", mismatches)
+        self.assertEqual(mismatches["trade_count"]["baseline"], 959233)
+        self.assertEqual(mismatches["trade_count"]["ml"],       959221)
+
+    def test_multiple_mismatches_detected(self):
+        base = _report([_fold(0)], input_meta={"trade_count": 100, "start": "2021-01-04"})
+        ml   = _report([_fold(0)], input_meta={"trade_count": 200, "start": "2020-01-01"},
+                       meta_label=True)
+        mismatches = self.cr.check_input_meta(base, ml)
+        self.assertIn("trade_count", mismatches)
+        self.assertIn("start", mismatches)
+
+    def test_write_report_fails_on_mismatch(self):
+        """write_report must exit non-zero when input_meta mismatches (no override)."""
+        base = _report([_fold(k) for k in range(3)],
+                       input_meta={"trade_count": 959233})
+        ml   = _report([_fold(k) for k in range(3)],
+                       input_meta={"trade_count": 959221}, meta_label=True)
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "out.json")
+            with self.assertRaises(SystemExit):
+                self.cr.write_report(base, ml, path)
+
+    def test_write_report_succeeds_with_allow_flag(self):
+        """--allow-input-mismatch lets write_report proceed; mismatch is in output."""
+        base = _report([_fold(k) for k in range(3)],
+                       input_meta={"trade_count": 959233})
+        ml   = _report([_fold(k) for k in range(3)],
+                       input_meta={"trade_count": 959221}, meta_label=True)
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "out.json")
+            self.cr.write_report(base, ml, path, allow_input_mismatch=True)
+            with open(path) as f:
+                data = json.load(f)
+            self.assertIn("input_mismatch", data)
+            self.assertIn("trade_count", data["input_mismatch"])
+
+    def test_regression_wf_vs_ml_reports_rejected(self):
+        """Regression: existing orb045-wf.json vs orb045-ml.json are rejected.
+
+        These two published reports have trade_count 959233 vs 959221.
+        check_input_meta must detect the mismatch.
+        """
+        root = pathlib.Path(__file__).parent.parent
+        wf_path = root / "reports" / "orb045-wf.json"
+        ml_path = root / "reports" / "orb045-ml.json"
+        if not wf_path.exists() or not ml_path.exists():
+            self.skipTest("Report JSON files not present (gitignored)")
+        with open(wf_path) as f:
+            wf = json.load(f)
+        with open(ml_path) as f:
+            ml_r = json.load(f)
+        cr = self._import()
+        mismatches = cr.check_input_meta(wf, ml_r)
+        self.assertIn("trade_count", mismatches,
+                      "Expected trade_count mismatch between wf and ml reports")
+        # Verify the known values
+        self.assertEqual(mismatches["trade_count"]["baseline"], 959233)
+        self.assertEqual(mismatches["trade_count"]["ml"],       959221)
 
 
 # ---------------------------------------------------------------------------
