@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "declared_at": "2026-08-03",
+  "note": "This file is frozen before any outer-test data is seen (Rule 2 in AGENT.md). Do not modify after the first M4 outer-test run.",
+  "model": "lightgbm",
+  "prob_threshold": 0.55,
+  "n_trials_max": 50,
+  "random_seed": 42,
+  "purge_days": 20,
+  "embargo_days": 5,
+  "n_cv_splits": 5,
+  "default_params": {
+    "num_leaves": 31,
+    "learning_rate": 0.05,
+    "min_child_samples": 20,
+    "feature_fraction": 1.0,
+    "bagging_fraction": 1.0,
+    "bagging_freq": 0
+  },
+  "param_ranges": {
+    "num_leaves":        {"type": "int",   "low": 15,   "high": 63},
+    "learning_rate":     {"type": "float", "low": 0.01, "high": 0.30, "log": true},
+    "min_child_samples": {"type": "int",   "low": 10,   "high": 60},
+    "scale_pos_weight":  {"type": "float", "low": 1.0,  "high": 10.0},
+    "feature_fraction":  {"type": "float", "low": 0.50, "high": 1.0},
+    "bagging_fraction":  {"type": "float", "low": 0.50, "high": 1.0},
+    "bagging_freq":      {"type": "int",   "low": 1,    "high": 7}
+  }
+}
