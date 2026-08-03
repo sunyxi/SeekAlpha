@@ -1,6 +1,7 @@
 {
   "schema_version": 1,
   "generated_at": "2026-08-03T06:46:36.228241Z",
+  "dev_cutoff": "2026-06-30",
   "fdr_q": 0.05,
   "horizons_days": [
     1,
