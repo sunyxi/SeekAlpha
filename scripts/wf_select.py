@@ -119,7 +119,12 @@ def main() -> None:
     ap.add_argument("--meta-label", action="store_true", default=False,
                     help="Apply LightGBM meta-labeling filter to test folds "
                          "(requires 'ml' optional dependencies)")
+    ap.add_argument("--bayes-search", action="store_true", default=False,
+                    help="Tune LightGBM hyperparams with Optuna TPE before each "
+                         "meta-label fit (implies --meta-label; requires 'ml' deps)")
     args = ap.parse_args()
+    if args.bayes_search and not args.meta_label:
+        ap.error("--bayes-search requires --meta-label")
     if os.path.exists(args.report_output):
         sys.exit("report path exists; create-only policy refuses overwrite")
 
@@ -139,6 +144,8 @@ def main() -> None:
 
     if args.meta_label:
         from orb.ml.meta_label import train_and_filter  # lazy — only when --meta-label
+    if args.bayes_search:
+        from orb.ml.bayes_search import optimize_from_trades as optimize_hyperparams  # lazy
 
     fold_reports, outer_trades = [], []
     for k, (train, test) in enumerate(folds):
@@ -172,10 +179,15 @@ def main() -> None:
             rep["selected"] = best
             if args.meta_label:
                 train_trades = [t for t in by_cand[best] if t["exit_time"][:10] in set(train)]
+                best_params = None
+                if args.bayes_search:
+                    best_params = optimize_hyperparams(train_trades,
+                                                       COST_SCENARIOS["baseline"])
                 sel, ml_cv = train_and_filter(train_trades, sel,
-                                              baseline_bps=COST_SCENARIOS["baseline"])
-                rep["meta_label"] = {"cv_log_loss": ml_cv,
-                                     "kept": len(sel)}
+                                              baseline_bps=COST_SCENARIOS["baseline"],
+                                              params=best_params)
+                rep["meta_label"] = {"cv_log_loss": ml_cv, "kept": len(sel),
+                                     "bayes_search": args.bayes_search}
             rep["test_metrics"] = metrics(sel, test, COST_SCENARIOS["baseline"])
             outer_trades.extend(sel)
         fold_reports.append(rep)
@@ -218,6 +230,7 @@ def main() -> None:
         "decision": decision,
         "decision_reasons": reasons or ["all pre-declared gates passed"],
         "meta_label_enabled": args.meta_label,
+        "bayes_search_enabled": args.bayes_search,
     }
     tmp = args.report_output + ".tmp"
     os.makedirs(os.path.dirname(args.report_output) or ".", exist_ok=True)
