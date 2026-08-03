@@ -116,6 +116,9 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--trades-dir", required=True)
     ap.add_argument("--report-output", required=True)
+    ap.add_argument("--meta-label", action="store_true", default=False,
+                    help="Apply LightGBM meta-labeling filter to test folds "
+                         "(requires 'ml' optional dependencies)")
     args = ap.parse_args()
     if os.path.exists(args.report_output):
         sys.exit("report path exists; create-only policy refuses overwrite")
@@ -133,6 +136,9 @@ def main() -> None:
         test = trading_days[i + TRAIN_DAYS:i + TRAIN_DAYS + TEST_DAYS]
         folds.append((train, test))
         i += STEP_DAYS
+
+    if args.meta_label:
+        from orb.ml.meta_label import train_and_filter  # lazy — only when --meta-label
 
     fold_reports, outer_trades = [], []
     for k, (train, test) in enumerate(folds):
@@ -164,6 +170,12 @@ def main() -> None:
             tset = set(test)
             sel = [t for t in by_cand[best] if t["exit_time"][:10] in tset]
             rep["selected"] = best
+            if args.meta_label:
+                train_trades = [t for t in by_cand[best] if t["exit_time"][:10] in set(train)]
+                sel, ml_cv = train_and_filter(train_trades, sel,
+                                              baseline_bps=COST_SCENARIOS["baseline"])
+                rep["meta_label"] = {"cv_log_loss": ml_cv,
+                                     "kept": len(sel)}
             rep["test_metrics"] = metrics(sel, test, COST_SCENARIOS["baseline"])
             outer_trades.extend(sel)
         fold_reports.append(rep)
@@ -205,6 +217,7 @@ def main() -> None:
         "symbol_attribution_baseline": dict(sorted(symbol_attr.items())),
         "decision": decision,
         "decision_reasons": reasons or ["all pre-declared gates passed"],
+        "meta_label_enabled": args.meta_label,
     }
     tmp = args.report_output + ".tmp"
     os.makedirs(os.path.dirname(args.report_output) or ".", exist_ok=True)
