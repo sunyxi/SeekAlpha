@@ -54,3 +54,4 @@ What other options were evaluated, and why were they rejected?
 | ADR-003 | Introduce numpy in the feature layer (M3) | Pending |
 | ADR-004 | ML classifier dependency for meta-labeling (M4) | Pending |
 | ADR-005 | Optuna for Bayesian hyperparameter search (M4) | Pending |
+| [ADR-006](ADR-006-optional-qlib-adapter.md) | Optional Microsoft Qlib research adapter | Accepted |

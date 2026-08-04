@@ -89,6 +89,7 @@ that imports it is merged.
 | Data pump (`scripts/local_pump.py`) | `alpaca-py` (declared in ADR-002) |
 | Feature layer, M3+ (`src/orb/features/`) | `numpy` (requires ADR-003 before merge) |
 | ML layer, M4+ (`src/orb/ml/`) | `scikit-learn` and/or `lightgbm` (requires ADR-004); `optuna` (requires ADR-005) |
+| Qlib adapter | `pandas`/`numpy`/`pyqlib` (ADR-006); excluded from core/WF |
 | Test suite | `pytest` only |
 
 Installing optional groups:
@@ -97,6 +98,7 @@ Installing optional groups:
 pip install -e ".[data]"   # adds alpaca-py
 pip install -e ".[test]"   # adds pytest
 pip install -e ".[ml]"     # adds scikit-learn/lightgbm/optuna (M4)
+pip install -e ".[qlib]"   # adds the optional Qlib research runtime
 ```
 
 ---
