@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "spec_id": "<strategy-family>-v<version>",
+  "strategy_family": "<declared-family>",
+  "hypothesis": "<falsifiable hypothesis before coding>",
+  "universe": {
+    "market": "<market>",
+    "membership_source": "<point-in-time universe source>",
+    "point_in_time": true,
+    "exclusions": ["<predeclared exclusion>"]
+  },
+  "features": [
+    {"name": "<feature>", "source": "<data source>", "as_of": "<availability boundary>", "transform": "<transform>"}
+  ],
+  "label": {
+    "name": "<label>",
+    "horizon_days": 1,
+    "definition": "<label definition including timing>",
+    "cost_included": true
+  },
+  "holding_period": {"min_days": 1, "max_days": 1, "overnight_allowed": false},
+  "parameters": {
+    "search_space_hash": "<sha256>",
+    "declared": {"<parameter>": {"type": "<type>", "low": 0, "high": 1}}
+  },
+  "costs": {
+    "scenarios": {"zero_bps_per_side": 0.0, "baseline_bps_per_side": 2.5, "double_bps_per_side": 5.0},
+    "commission_model": "<declared commission model>"
+  },
+  "protocol": {"protocol_id": "<protocol id>", "protocol_hash": "<sha256>"},
+  "data": {"manifest_hash": "<sha256>", "snapshot_id": "<immutable snapshot>"},
+  "experiment_budget": {"max_parameter_trials": 192, "max_model_trials": 50},
+  "invalidation": ["<condition that invalidates evidence>"]
+}

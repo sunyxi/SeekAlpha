@@ -18,6 +18,7 @@
 │  Report Layer                                                       │
 │  wf_select.py: create-only JSON report, Gate status, provenance    │
 │  research_protocol.py: frozen windows, budgets, gates, retention log│
+│  strategy_contract.py: spec/report validation, summary rendering    │
 │  Future: IC report (factor panel → rank-IC table, FDR result)      │
 └────────────────────────┬────────────────────────────────────────────┘
                          │ reads trade logs / IC results
@@ -161,6 +162,8 @@ Each WF fold's training window
 | 11 | **Determinism**: same input → same output; no random state outside explicitly seeded ML (M4) | stdlib, seeded RNG in M4 |
 | 12 | **Research protocol**: development, outer-test, and retention windows are disjoint; budgets, gates, costs, purge, embargo, and seeds are machine-readable and hashed | `research_protocol.json`, `research_protocol.py` |
 | 13 | **Retention read-once**: a retention experiment ID is atomically reserved before its loader runs; failed loads remain consumed | `RetentionLedger` |
+| 14 | **Predeclared strategy contract**: reports must match the specification hash, protocol hash, data manifest hash, code commit, and experiment budget | `strategy_contract.py` |
+| 15 | **Create-only decision artifacts**: JSON reports and rendered summaries refuse overwrite and are generated from validated source objects | `strategy_contract.py`, `validate_strategy_contract.py` |
 
 ---
 
