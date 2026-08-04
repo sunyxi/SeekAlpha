@@ -13,6 +13,8 @@ scripts/local_pump.py   数据泵：Alpaca 免费 IEX 分钟数据 -> 5 分钟�
 scripts/wf_select.py    nested walk-forward + 成本场景 + 报告（create-only）
 src/orb/research_protocol.json  新策略研究协议（窗口、预算、门槛、成本）
 scripts/validate_research_protocol.py  协议校验与哈希输出
+src/orb/strategy_spec_template.json  策略假设规格模板（Source of Truth）
+scripts/validate_strategy_contract.py  规格/决策报告校验与摘要渲染
 tests/test_orb_core.py  确定性 Fixture 测试（无网络、无账户）
 docs/ARCHITECTURE.md    系统架构与关键不变量
 docs/ROADMAP.md         里程碑路线图（M0–M5）
@@ -48,6 +50,10 @@ python3 scripts/validate_manifest.py --manifest reports/manifest.json
 
 # 4) 校验新策略研究协议；首次读取 retention 前必须确认协议哈希
 python3 scripts/validate_research_protocol.py --json
+
+# 5) 校验已预声明的策略规格与决策报告，并 create-only 生成摘要
+python3 scripts/validate_strategy_contract.py --spec path/to/spec.json \
+  --report path/to/report.json --summary-output reports/strategy-summary.md
 ```
 
 新策略研究的开发、outer-test 和 retention 窗口、实验预算、purge/embargo、
@@ -56,6 +62,9 @@ python3 scripts/validate_research_protocol.py --json
 retention 期在 2027-01-01 前不可读取；读取必须通过 read-once ledger，并在
 同一 `experiment_id` 下拒绝第二次访问。详细的 English、日本語和简体中文
 操作、限制及回滚说明见 `docs/research-protocol.*.md`。
+策略规格和决策报告的 CLI、运维、限制及回滚说明见
+`docs/strategy-contract.*.md`。Candidate、No-Go、Exploratory 和 Invalid
+是唯一允许的决策状态；没有策略结果或参数搜索会被本 Issue 生成。
 
 ### 可选 Qlib POC
 
