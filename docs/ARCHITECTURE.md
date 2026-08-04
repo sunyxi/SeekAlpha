@@ -17,6 +17,7 @@
 ┌────────────────────────▼────────────────────────────────────────────┐
 │  Report Layer                                                       │
 │  wf_select.py: create-only JSON report, Gate status, provenance    │
+│  research_protocol.py: frozen windows, budgets, gates, retention log│
 │  Future: IC report (factor panel → rank-IC table, FDR result)      │
 └────────────────────────┬────────────────────────────────────────────┘
                          │ reads trade logs / IC results
@@ -95,7 +96,7 @@ trades_NNNN.json + meta.json             [runs/<name>/shard<N>of<M>/]
    ▼
 wf_select.py                             [validation layer]
    │  validates grid_spec_hash, shard completeness, no duplicates
-   │  nested WF: 252d train / 20% val / 63d test, step 63d
+   │  nested WF: protocol-controlled train/validation/test windows
    │  fold gate → best candidate per fold → outer test aggregation
    │  cost scenarios: zero / baseline (2.5 bps) / double (5 bps)
    ▼
@@ -158,6 +159,8 @@ Each WF fold's training window
 | 9 | **Retention period once-only**: outer test data and final hold-out period are consumed exactly once | process discipline |
 | 10 | **Zero credentials on disk**: Alpaca keys read from env vars only, never written to any file | `local_pump.py` |
 | 11 | **Determinism**: same input → same output; no random state outside explicitly seeded ML (M4) | stdlib, seeded RNG in M4 |
+| 12 | **Research protocol**: development, outer-test, and retention windows are disjoint; budgets, gates, costs, purge, embargo, and seeds are machine-readable and hashed | `research_protocol.json`, `research_protocol.py` |
+| 13 | **Retention read-once**: a retention experiment ID is atomically reserved before its loader runs; failed loads remain consumed | `RetentionLedger` |
 
 ---
 
@@ -201,3 +204,4 @@ ADRs live in `docs/adr/`. Each third-party dependency introduction requires one.
 | ADR-004 | Pending (M4) | Introduce scikit-learn / lightgbm for meta-labeling |
 | ADR-005 | Pending (M4) | Introduce optuna for Bayesian hyperparameter search |
 | [ADR-006](adr/ADR-006-optional-qlib-adapter.md) | Accepted | Add an isolated optional Microsoft Qlib research adapter |
+| [ADR-007](adr/ADR-007-research-protocol-retention-ledger.md) | Accepted | Freeze research protocol and enforce read-once retention access |

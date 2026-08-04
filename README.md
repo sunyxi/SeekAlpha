@@ -11,6 +11,8 @@
 core/orb_core.py        券商无关 ORB 核心：特征、信号、192 候选生命周期模拟
 scripts/local_pump.py   数据泵：Alpaca 免费 IEX 分钟数据 -> 5 分钟合成 -> 核心
 scripts/wf_select.py    nested walk-forward + 成本场景 + 报告（create-only）
+src/orb/research_protocol.json  新策略研究协议（窗口、预算、门槛、成本）
+scripts/validate_research_protocol.py  协议校验与哈希输出
 tests/test_orb_core.py  确定性 Fixture 测试（无网络、无账户）
 docs/ARCHITECTURE.md    系统架构与关键不变量
 docs/ROADMAP.md         里程碑路线图（M0–M5）
@@ -43,7 +45,17 @@ python3 scripts/wf_select.py --trades-dir runs/orb045 \
 
 # 3) 验证 manifest，并如实报告本机原始 JSON 的覆盖状态
 python3 scripts/validate_manifest.py --manifest reports/manifest.json
+
+# 4) 校验新策略研究协议；首次读取 retention 前必须确认协议哈希
+python3 scripts/validate_research_protocol.py --json
 ```
+
+新策略研究的开发、outer-test 和 retention 窗口、实验预算、purge/embargo、
+成本场景、随机种子和 promotion gates 只以
+[`src/orb/research_protocol.json`](src/orb/research_protocol.json) 为准。
+retention 期在 2027-01-01 前不可读取；读取必须通过 read-once ledger，并在
+同一 `experiment_id` 下拒绝第二次访问。详细的 English、日本語和简体中文
+操作、限制及回滚说明见 `docs/research-protocol.*.md`。
 
 ### 可选 Qlib POC
 
