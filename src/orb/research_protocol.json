@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "protocol_id": "seekalpha_strategy_discovery_v1",
+  "declared_at": "2026-08-04",
+  "retention_available_after": "2027-01-01",
+  "date_windows": {
+    "development": {"start": "2021-01-04", "end": "2024-12-31"},
+    "outer_test": {"start": "2025-01-01", "end": "2026-06-30"},
+    "retention": {"start": "2026-07-01", "end": "2026-12-31"}
+  },
+  "experiment_budget": {
+    "max_experiments_per_strategy_family": 3,
+    "max_total_experiments": 12,
+    "max_parameter_trials_per_experiment": 192,
+    "max_model_trials_per_experiment": 50
+  },
+  "validation": {
+    "train_days": 252,
+    "validation_days": 63,
+    "outer_test_days": 63,
+    "step_days": 63,
+    "purge_days": 20,
+    "embargo_days": 5,
+    "random_seed_required": true
+  },
+  "costs": {
+    "zero_bps_per_side": 0.0,
+    "baseline_bps_per_side": 2.5,
+    "double_bps_per_side": 5.0
+  },
+  "random_seeds": {
+    "default": 20260804,
+    "baseline_models": 42
+  },
+  "gates": {
+    "min_outer_trades": 200,
+    "min_outer_sharpe": 1.2,
+    "min_outer_profit_factor": 1.2,
+    "min_double_cost_mean_net_bps": 0.0,
+    "max_outer_drawdown": 0.12,
+    "max_positive_symbol_share": 0.25,
+    "min_positive_outer_folds": 3
+  },
+  "invalidation_rules": [
+    "retention_accessed_more_than_once_for_experiment_id",
+    "protocol_or_search_budget_changed_after_first_result",
+    "development_outer_test_or_retention_overlap",
+    "posthoc_gate_or_cost_change",
+    "missing_purge_embargo_or_random_seed_evidence",
+    "data_manifest_or_feature_definition_changed_without_new_experiment_id"
+  ]
+}
