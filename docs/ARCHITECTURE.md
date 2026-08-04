@@ -19,6 +19,7 @@
 │  wf_select.py: create-only JSON report, Gate status, provenance    │
 │  research_protocol.py: frozen windows, budgets, gates, retention log│
 │  strategy_contract.py: spec/report validation, summary rendering    │
+│  data_source_policy.py: provider policy and PIT universe intervals  │
 │  Future: IC report (factor panel → rank-IC table, FDR result)      │
 └────────────────────────┬────────────────────────────────────────────┘
                          │ reads trade logs / IC results
@@ -164,6 +165,8 @@ Each WF fold's training window
 | 13 | **Retention read-once**: a retention experiment ID is atomically reserved before its loader runs; failed loads remain consumed | `RetentionLedger` |
 | 14 | **Predeclared strategy contract**: reports must match the specification hash, protocol hash, data manifest hash, code commit, and experiment budget | `strategy_contract.py` |
 | 15 | **Create-only decision artifacts**: JSON reports and rendered summaries refuse overwrite and are generated from validated source objects | `strategy_contract.py`, `validate_strategy_contract.py` |
+| 16 | **PIT identity**: instrument ID and listing intervals define membership; ticker is a date-scoped alias only | `PointInTimeUniverse` |
+| 17 | **Licensed data boundary**: source capability gaps and contract blockers are explicit before download | `data_source_policy.json` |
 
 ---
 

@@ -55,3 +55,6 @@ What other options were evaluated, and why were they rejected?
 | ADR-004 | ML classifier dependency for meta-labeling (M4) | Pending |
 | ADR-005 | Optuna for Bayesian hyperparameter search (M4) | Pending |
 | [ADR-006](ADR-006-optional-qlib-adapter.md) | Optional Microsoft Qlib research adapter | Accepted |
+| [ADR-007](ADR-007-research-protocol-retention-ledger.md) | Freeze research protocol and enforce read-once retention access | Accepted |
+| [ADR-008](ADR-008-strategy-spec-and-decision-report-contract.md) | Strategy specification and decision report contract | Accepted |
+| [ADR-009](ADR-009-licensed-data-source-and-pit-universe.md) | Licensed data source policy and point-in-time universe | Accepted with blockers |

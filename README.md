@@ -15,6 +15,8 @@ src/orb/research_protocol.json  新策略研究协议（窗口、预算、门槛
 scripts/validate_research_protocol.py  协议校验与哈希输出
 src/orb/strategy_spec_template.json  策略假设规格模板（Source of Truth）
 scripts/validate_strategy_contract.py  规格/决策报告校验与摘要渲染
+src/orb/data_source_policy.json  数据源授权与 PIT universe contract
+scripts/validate_data_source_policy.py  数据源政策校验
 tests/test_orb_core.py  确定性 Fixture 测试（无网络、无账户）
 docs/ARCHITECTURE.md    系统架构与关键不变量
 docs/ROADMAP.md         里程碑路线图（M0–M5）
@@ -65,6 +67,9 @@ retention 期在 2027-01-01 前不可读取；读取必须通过 read-once ledge
 策略规格和决策报告的 CLI、运维、限制及回滚说明见
 `docs/strategy-contract.*.md`。Candidate、No-Go、Exploratory 和 Invalid
 是唯一允许的决策状态；没有策略结果或参数搜索会被本 Issue 生成。
+数据源政策的 CLI、运维、限制及回滚说明见 `docs/data-source-policy.*.md`。
+在授权合同和 sector history blocker 关闭前，禁止 bulk download、retention
+evaluation 和生产使用。
 
 ### 可选 Qlib POC
 
