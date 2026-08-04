@@ -58,3 +58,4 @@ What other options were evaluated, and why were they rejected?
 | [ADR-007](ADR-007-research-protocol-retention-ledger.md) | Freeze research protocol and enforce read-once retention access | Accepted |
 | [ADR-008](ADR-008-strategy-spec-and-decision-report-contract.md) | Strategy specification and decision report contract | Accepted |
 | [ADR-009](ADR-009-licensed-data-source-and-pit-universe.md) | Licensed data source policy and point-in-time universe | Accepted with blockers |
+| [ADR-010](ADR-010-immutable-research-cache.md) | Immutable incremental research cache | Accepted |

@@ -17,6 +17,8 @@ src/orb/strategy_spec_template.json  策略假设规格模板（Source of Truth�
 scripts/validate_strategy_contract.py  规格/决策报告校验与摘要渲染
 src/orb/data_source_policy.json  数据源授权与 PIT universe contract
 scripts/validate_data_source_policy.py  数据源政策校验
+src/orb/immutable_cache.py  provider-isolated immutable partitions/snapshots
+scripts/validate_snapshot.py  snapshot manifest 校验与精确解析
 tests/test_orb_core.py  确定性 Fixture 测试（无网络、无账户）
 docs/ARCHITECTURE.md    系统架构与关键不变量
 docs/ROADMAP.md         里程碑路线图（M0–M5）
@@ -70,6 +72,8 @@ retention 期在 2027-01-01 前不可读取；读取必须通过 read-once ledge
 数据源政策的 CLI、运维、限制及回滚说明见 `docs/data-source-policy.*.md`。
 在授权合同和 sector history blocker 关闭前，禁止 bulk download、retention
 evaluation 和生产使用。
+增量研究缓存不覆盖现有 snapshot；使用 chunk checkpoint、文件 SHA-256 和
+create-only manifest。详情见 `docs/immutable-cache.*.md`。
 
 ### 可选 Qlib POC
 

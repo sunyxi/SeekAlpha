@@ -20,6 +20,7 @@
 │  research_protocol.py: frozen windows, budgets, gates, retention log│
 │  strategy_contract.py: spec/report validation, summary rendering    │
 │  data_source_policy.py: provider policy and PIT universe intervals  │
+│  immutable_cache.py: provider partitions and snapshot manifests    │
 │  Future: IC report (factor panel → rank-IC table, FDR result)      │
 └────────────────────────┬────────────────────────────────────────────┘
                          │ reads trade logs / IC results
@@ -167,6 +168,7 @@ Each WF fold's training window
 | 15 | **Create-only decision artifacts**: JSON reports and rendered summaries refuse overwrite and are generated from validated source objects | `strategy_contract.py`, `validate_strategy_contract.py` |
 | 16 | **PIT identity**: instrument ID and listing intervals define membership; ticker is a date-scoped alias only | `PointInTimeUniverse` |
 | 17 | **Licensed data boundary**: source capability gaps and contract blockers are explicit before download | `data_source_policy.json` |
+| 18 | **Immutable cache**: provider partitions, checkpoints, files, and snapshots are create-only and hash-addressed by manifest evidence | `immutable_cache.py` |
 
 ---
 
