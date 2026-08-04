@@ -45,6 +45,21 @@ python3 scripts/wf_select.py --trades-dir runs/orb045 \
 python3 scripts/validate_manifest.py --manifest reports/manifest.json
 ```
 
+### 可选 Qlib POC
+
+Qlib 只作为隔离的研究适配器，不替换 ORB 核心或 walk-forward：
+
+```bash
+pip install -e ".[qlib]"
+python3 scripts/qlib_poc.py --cache-dir data \
+  --start 2021-01-04 --end 2026-06-30 \
+  --output derived/qlib-daily.csv --verify-qlib
+```
+
+该命令只读取已有缓存，并以 create-only 方式生成派生 CSV。详细的 CLI、
+运维、限制和回滚说明见 [简体中文](docs/qlib-poc.zh-CN.md)、
+[日本語](docs/qlib-poc.ja.md) 和 [English](docs/qlib-poc.en.md)。
+
 `reports/*.json` 默认不提交。因此普通 CI checkout 只能将 manifest
 结构报告为 `passed`，并将原始报告校验报告为 `not-run`。只有在
 manifest 中的全部原始报告实际存在、SHA-256 匹配，且

@@ -38,6 +38,7 @@
 │  Feature Layer                                                      │
 │  ORB features: point-in-time ATR (Wilder-14), RVOL (median-20d),   │
 │                VWAP, opening-range windows                          │
+│  Optional: Qlib-compatible panel adapter (isolated research only)   │
 │  Future: Alpha-101 operator library (numpy only)                    │
 │  Future: daily factor panel (cross-sectional rank, IC evaluation)   │
 └────────────────────────┬────────────────────────────────────────────┘
@@ -61,6 +62,9 @@
 - The Data Layer may use `alpaca-py`. All third-party imports are isolated here.
 - ML dependencies (`scikit-learn`, `lightgbm`, `optuna`) are permitted only in
   the ML sub-module of the Validation Layer, guarded by a separate ADR (M4).
+- Qlib dependencies are permitted only under `src/orb/qlib_adapter/`. The
+  adapter consumes the existing daily panel and cannot be referenced by the
+  core engine or `wf_select.py`.
 
 ---
 
@@ -196,3 +200,4 @@ ADRs live in `docs/adr/`. Each third-party dependency introduction requires one.
 | ADR-003 | Pending (M3) | Introduce numpy in feature layer for Alpha-101 operators |
 | ADR-004 | Pending (M4) | Introduce scikit-learn / lightgbm for meta-labeling |
 | ADR-005 | Pending (M4) | Introduce optuna for Bayesian hyperparameter search |
+| [ADR-006](adr/ADR-006-optional-qlib-adapter.md) | Accepted | Add an isolated optional Microsoft Qlib research adapter |

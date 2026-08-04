@@ -1,5 +1,20 @@
 # Known Limitations
 
+## Optional Qlib POC
+
+The Qlib adapter currently validates only a deterministic daily OHLCV DataFrame
+boundary. It does not run Qlib factors, train models, tune parameters, replace
+the frozen ORB lifecycle, or provide execution capability. Runtime integration
+tests are skipped when the `qlib` optional dependency is absent and must not be
+reported as passed. With pyqlib 0.9.7 installed, Qlib currently emits three
+upstream numpy `Timedelta` deprecation warnings during import; a future numpy
+release may require a Qlib upgrade. See
+[Qlib POC limitations](qlib-poc.en.md#limitations).
+
+The current daily panel builder scans complete cache files before applying a
+narrow requested date range. A one-day Qlib export from multi-year minute
+caches can therefore take several minutes even though the output is small.
+
 ## Raw report verification in CI
 
 Research JSON outputs under `reports/*.json` are create-only local artifacts and
