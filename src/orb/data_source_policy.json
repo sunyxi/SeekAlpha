@@ -1,0 +1,80 @@
+{
+  "schema_version": 1,
+  "policy_id": "us_equities_pit_data_v1",
+  "decision": "selected_with_blockers",
+  "primary": {
+    "provider": "databento",
+    "capabilities": {
+      "historical_daily_ohlcv": true,
+      "historical_minute_ohlcv": true,
+      "corporate_actions": true,
+      "delisted_instruments": true,
+      "symbol_changes": true,
+      "bid_ask": true,
+      "point_in_time_listing_reference": true,
+      "historical_sector_history": false
+    },
+    "source_urls": [
+      "https://databento.com/docs/venues-and-datasets/corporate-actions",
+      "https://databento.com/docs/standards-and-conventions/reference-data-enums"
+    ]
+  },
+  "fallback": {
+    "provider": "alpaca",
+    "capabilities": {
+      "historical_daily_ohlcv": true,
+      "historical_minute_ohlcv": true,
+      "corporate_actions": true,
+      "delisted_instruments": false,
+      "symbol_changes": true,
+      "bid_ask": true,
+      "point_in_time_listing_reference": false,
+      "historical_sector_history": false
+    },
+    "source_urls": [
+      "https://docs.alpaca.markets/us/v1.4.2/reference/stockbars",
+      "https://docs.alpaca.markets/us/changelog/2026-06-03-market-data-9dddd18"
+    ]
+  },
+  "universe": {
+    "market": "US_EQUITIES",
+    "asset_types": ["common_stock"],
+    "membership_basis": "point_in_time_listing_intervals",
+    "identity_key": "instrument_id",
+    "symbol_is_alias_only": true,
+    "interval_end_semantics": "exclusive",
+    "minimum_history_start": "2021-01-04",
+    "minimum_daily_universe_size": 500,
+    "minimum_regime_years": 5,
+    "minute_subset_max_size": 200,
+    "survivorship_bias_rule": "include_listed_and_delisted_instruments_when_valid_at_as_of_date",
+    "symbol_change_rule": "join_by_instrument_id_and_apply_alias_interval",
+    "listing_rule": "listed_from_inclusive_listed_to_exclusive",
+    "delisting_rule": "retain_history_through_last_valid_trading_date"
+  },
+  "licensing": {
+    "research_only_until_contract_approved": true,
+    "credentials_from_environment_only": true,
+    "redistribution_allowed": false,
+    "raw_data_commit_forbidden": true,
+    "required_contract_checks": [
+      "historical_non_display_use",
+      "derived_feature_storage",
+      "retention_period_storage",
+      "delisted_and_corporate_action_coverage",
+      "sector_history_source_or_explicit_exclusion"
+    ]
+  },
+  "blockers": [
+    "Databento contract and non-display research entitlement are not configured in this repository.",
+    "A licensed point-in-time historical sector classification source is still required.",
+    "Provider coverage and costs must be verified before bulk download or retention evaluation."
+  ],
+  "prohibited_shortcuts": [
+    "current_constituents_as_historical_membership",
+    "ticker_only_identity_join",
+    "dropping_delisted_instruments",
+    "mixing_adjustment_semantics_without_manifest",
+    "committing_credentials_or_raw_market_data"
+  ]
+}
